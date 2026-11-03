@@ -2,19 +2,81 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Chiki Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-         font-family: system-ui, sans-serif; background: #1e3a8a; color: #fff; text-align: center; }
-  h1 { font-size: 2.4rem; margin: 0 0 .5rem; }
-  p { opacity: .8; }
+  /* Chiki Games: Sean's phone games. Same Memphis look as the XR launcher, in cobalt.
+     To add a game: put an <a class="card"> in .cards (see CLAUDE.md). */
+  :root{
+    --paper:#fff3dc; --ink:#111; --soft:#4a4458; --white:#fffdf7;
+    --pink:#ff3e8a; --yellow:#ffd400; --teal:#00c2b3; --cobalt:#2f5cff; --violet:#9b5cff;
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--paper)}
+  body{
+    margin:0; min-height:100vh; color:var(--ink); background-color:var(--paper);
+    font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif; padding:28px 16px 60px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cpath d='M20 40 q10-14 20 0 t20 0 t20 0' fill='none' stroke='%23ff3e8a' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='200' cy='38' r='6' fill='%232f5cff'/%3E%3Cpath d='M150 120 l16 28 h-32z' fill='none' stroke='%23111' stroke-width='3'/%3E%3Ccircle cx='50' cy='170' r='12' fill='none' stroke='%2300c2b3' stroke-width='4'/%3E%3Cpath d='M180 210 l10-10 l10 10 l10-10 l10 10' fill='none' stroke='%23ffd400' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='110' cy='230' r='4' fill='%23111'/%3E%3Crect x='224' y='120' width='14' height='14' fill='%239b5cff' transform='rotate(20 231 127)'/%3E%3C/svg%3E");
+    background-size:260px 260px;
+  }
+  .wrap{max-width:960px; margin:0 auto}
+  h1{margin:0; font-family:Bungee,Rubik,sans-serif; font-weight:400; font-size:clamp(44px,12vw,84px); line-height:.95;
+    text-shadow:5px 5px 0 var(--yellow)}
+  h1 span{color:var(--cobalt)}
+  .sub{margin:12px 0 0; font-size:16px; font-weight:600; color:var(--soft)}
+  .sub b{color:var(--ink); background:var(--yellow); border:2px solid var(--ink); padding:1px 6px}
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:24px; margin-top:34px}
+  .card{
+    position:relative; display:block; text-decoration:none; color:var(--ink);
+    background:var(--white); border:3px solid var(--ink); padding:18px 18px 16px;
+    box-shadow:7px 7px 0 var(--cobalt),7px 7px 0 3px var(--ink); transition:transform .15s, box-shadow .15s;
+  }
+  .card:hover,.card:focus-visible{outline:none; transform:translate(-3px,-3px) rotate(-.6deg); box-shadow:11px 11px 0 var(--cobalt),11px 11px 0 3px var(--ink)}
+  .card:active{transform:translate(3px,3px); box-shadow:2px 2px 0 var(--cobalt),2px 2px 0 3px var(--ink)}
+  .card b{display:block; font-size:24px; font-weight:800; line-height:1.15}
+  .card .blurb{display:block; margin-top:6px; font-size:15px; line-height:1.4; color:var(--soft)}
+  .card .up{display:block; margin-top:12px; padding-top:10px; border-top:3px dotted var(--ink); font-size:13px}
+  .card .when{display:inline-block; font-weight:800; background:var(--ink); color:var(--white); padding:3px 8px}
+  .card .msg{display:block; margin-top:7px; font-size:14px; line-height:1.4}
+  .card .msg::before{content:"What's new: "; font-weight:800}
+  footer{margin-top:44px}
+  footer span{font-size:14px; background:var(--white); border:2px solid var(--ink); padding:6px 10px}
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
 </style>
 </head>
 <body>
-  <div>
-    <h1>Chiki Games</h1>
-    <p>Test page — ChikiBallz multiplayer coming soon.</p>
-  </div>
+<div class="wrap">
+  <h1>Chiki <span>Games</span></h1>
+  <p class="sub">Phone games · newest first</p>
+
+  <main class="cards">
+    <a class="card" href="chikiballz/"><b>ChikiBallz</b><span class="blurb">Hide &amp; seek infection in a carved cube. Play a friend on another phone with a 4-digit code</span></a>
+  </main>
+
+  <footer><span>Times are Toronto time (ET)</span></footer>
+</div>
+<script src="updated.js" data-mode="list"></script>
+<script>
+(async () => {
+  const U = window.ChikiUpdated; if (!U) return;
+  const cards = [...document.querySelectorAll('.card')];
+  const got = await Promise.all(cards.map(async a => {
+    try {
+      const v = await U.latest(U.pathOf(a.href)), d = new Date(v.date);
+      const up = document.createElement('span'); up.className = 'up';
+      const w = document.createElement('span'); w.className = 'when'; w.textContent = 'Updated ' + U.ago(d) + ' · ' + U.when(d);
+      const m = document.createElement('span'); m.className = 'msg'; m.textContent = v.msg;
+      up.append(w, m); a.append(up);
+      return { a, t: +d };
+    } catch (e) { return { a, t: 0 }; }
+  }));
+  const list = document.querySelector('.cards');
+  got.sort((x, y) => y.t - x.t).forEach(g => list.append(g.a));   // newest first
+})();
+</script>
 </body>
 </html>
