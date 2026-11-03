@@ -53,10 +53,12 @@
     const tag = document.createElement('div');
     tag.textContent = 'Updated ' + when(d) + ' · ' + ago(d);
     tag.title = v.msg;
-    tag.setAttribute('style', 'position:fixed;right:10px;bottom:10px;z-index:2147483000;pointer-events:none;' +
+    // on a phone game the corner belongs to the thumb buttons: show it at the bottom centre for a few seconds, then fade
+    tag.setAttribute('style', 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:2147483000;pointer-events:none;transition:opacity 1s;' +
       'font:700 12px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;color:#111;background:#ffd400;' +
       'border:2px solid #111;box-shadow:3px 3px 0 #ff3e8a;border-radius:999px;padding:5px 11px;white-space:nowrap');
     document.body.appendChild(tag);
+    setTimeout(() => { tag.style.opacity = '0'; }, 6000);
     dispatchEvent(new CustomEvent('chiki-updated', { detail: window.chikiUpdated }));
   }).catch(() => {});
 })();
