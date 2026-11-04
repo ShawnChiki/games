@@ -254,7 +254,8 @@ const isTouch=matchMedia('(pointer: coarse)').matches;
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- constants ---------- */
-const CELL=10,NB=3,WALL=36,WT=1.5,FLOOR_Y=-26,CEIL_Y=56,GOAL_Y=27;
+const CELL=10,NB=3,WALL=36,WT=1.5,FLOOR_Y=-26,CEIL_Y=56;
+let GOAL_Y=27;const HEIGHTS=[15,27,38],FOGS=[[.004,0x4c4338],[.019,0x5c5040],[.055,0x857660]];
 const RUN=7,JUMP_V=8.4,GRAV=24,BR=0.32,BH=1.75,FOOT=0.14,STEP=0.46,HS=1/120;
 const NCELLS=15,MAXC=512,CROWD=[10,30,80,200],CORPSES=[30,50,70,90];let stepN=0;
 const cellX=k=>-28+4*k;
@@ -273,6 +274,7 @@ const ANISO=Math.min(8,renderer.capabilities.getMaxAnisotropy());
 const scene=new THREE.Scene();
 const FOGC=new THREE.Color(0x544a3e);
 scene.background=FOGC.clone();scene.fog=new THREE.FogExp2(FOGC,0.0118);
+function applyFog(){const f=FOGS[cfg.fog]||FOGS[1];scene.fog.color.setHex(f[1]);scene.background.setHex(f[1]);scene.fog.density=Math.max(f[0],Q.level>=3?.02:0);}
 const camera=new THREE.PerspectiveCamera(62,1,0.08,320);
 const sunDir=new V3(-0.72,0.62,0.3).normalize();
 const sun=new THREE.DirectionalLight(0xffe0b8,2.6);
@@ -480,7 +482,7 @@ function tryPlan(o){
         else if(t==='jump')dy=R(-1.6,.35);
         else if(t==='wallrun')dy=R(-.8,0);
         const ty=Math.round((cur.y+dy)*10)/10;
-        if(ty>40||ty<-16)continue;
+        if(ty>Math.max(40,GOAL_Y+8)||ty<-16)continue;
         if(j===NB&&ty<8)continue;
         const lo=Math.min(cur.y,ty),hi=Math.max(cur.y,ty);
         if(!free(occ,ck(i,j),ty-1.7,ty+4.3))continue;
@@ -529,7 +531,7 @@ function tryPlan(o){
   function walkMain(start,goal,needAll,taken){
     let cur=start;const path=[start];let last=null,last2=null;const visited=new Set();
     const done=()=>cur.y>=goal&&!cur.gallery&&bd(cur.i,cur.j)===0&&exitDirs(cur,taken).length>0;
-    for(let step=0;step<36;step++){
+    for(let step=0;step<44;step++){
       if(done())break;
       const cs=cands(cur,'main');if(!cs.length)return null;
       const need=goal-cur.y;
@@ -542,7 +544,7 @@ function tryPlan(o){
       }
       const c=wpick(cs);cur=apply(cur,c,{});path.push(cur);visited.add(ck(c.i,c.j));last2=last;last=c.t;
     }
-    if(!done()||path.length<9||path.length>27)return null;
+    if(!done()||path.length<9||path.length>(GOAL_Y>30?33:27))return null;
     const types=new Set(path.slice(1).map(n=>n.conns.find(c=>c.b===n).type));
     if(['climb','jump','beam','wallrun'].filter(t=>types.has(t)).length<(needAll?4:3))return null;
     return path;
@@ -1703,6 +1705,7 @@ function setTag(n){$('tagNum').textContent=n;}
 function newPrison(seed){
   disposeLevel();sfx.stopDoors();for(const c of chars.slice())removeChar(c);chars=[];player=null;puddles.length=0;pLife.fill(0);crumbs=[];
   northLight.visible=southLight.visible=!!cfg.wayfind;
+  GOAL_Y=HEIGHTS[cfg.height]||27;applyFog();
   const o={exits:cfg.exits,routes:cfg.routes,density:cfg.density};
   let plan=genPlan(seed,o);let s=seed;while(!plan){s+=101;if(o.routes>1)o.routes--;else if(o.exits>1)o.exits--;plan=genPlan(s,o);}
   LV=buildLevel(plan);buildMap();
@@ -2030,13 +2033,15 @@ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest
 $('controls').innerHTML=isTouch
   ?'<dt>Left thumb</dt><dd>Run</dd><dt>Right thumb</dt><dd>Look around</dd><dt>Flick up</dt><dd>Jump. Ledge grabs and wall runs happen on their own.</dd><dt>Slide sideways</dt><dd>Balance on fallen columns</dd>'
   :'<dt>W A S D</dt><dd>Run</dd><dt>Drag</dt><dd>Look around</dd><dt>Space</dt><dd>Jump. Ledge grabs and wall runs happen on their own.</dd><dt>A / D</dt><dd>Balance on fallen columns</dd><dt>M</dt><dd>Study the plan while in a cell</dd>';
-const CFG_DEF={exits:1,routes:2,density:1,minutes:3,crowd:1,carry:0,route:0,wayfind:1};
+const CFG_DEF={exits:1,routes:2,density:1,height:1,fog:1,minutes:3,crowd:1,carry:0,route:0,wayfind:1};
 let cfg=Object.assign({},CFG_DEF);try{const sv=JSON.parse(localStorage.getItem('carceri-cfg')||'null');if(sv)cfg=Object.assign(cfg,sv);}catch(e){}
-if(!(cfg.crowd>=0&&cfg.crowd<CROWD.length))cfg.crowd=1;if(!(cfg.minutes>=.5&&cfg.minutes<=30))cfg.minutes=3;
+if(!(cfg.crowd>=0&&cfg.crowd<CROWD.length))cfg.crowd=1;if(!(cfg.minutes>=.5&&cfg.minutes<=30))cfg.minutes=3;for(const k of ['height','fog'])if(![0,1,2].includes(cfg[k]))cfg[k]=1;
 const SETTINGS=[
   {k:'exits',label:'Ways out',opts:[[1,'1'],[2,'2'],[3,'3']]},
   {k:'routes',label:'Routes to each',opts:[[1,'1'],[2,'2'],[3,'3']]},
   {k:'density',label:'Density',opts:[[0,'Open'],[1,'Dense'],[2,'Packed']]},
+  {k:'height',label:'Height to the exits',opts:[[0,'Low'],[1,'Tall'],[2,'Towering']]},
+  {k:'fog',label:'Fog',opts:[[0,'Clear'],[1,'Hazy'],[2,'Thick']]},
   {k:'minutes',label:'Lockdown clock',type:'num',min:.5,max:30,step:.5,unit:'min'},
   {k:'crowd',label:'Other inmates',opts:[[0,'10'],[1,'30'],[2,'80'],[3,'200']]},
   {k:'carry',label:'Carry the plan',opts:[[0,'No'],[1,'Yes'],[2,'With me on it']]},
@@ -2178,7 +2183,7 @@ function setQuality(l){
   renderer.setPixelRatio([Math.min(dpr,isTouch?1.5:2),Math.min(dpr,1),.8,.65][l]);resize();
   if(l>=1)for(const k in I)I[k].castShadow=false;
   if(l>=2&&renderer.shadowMap.enabled){renderer.shadowMap.enabled=false;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});}
-  if(l>=3){camera.far=120;camera.updateProjectionMatrix();scene.fog.density=.02;}
+  if(l>=3){camera.far=120;camera.updateProjectionMatrix();applyFog();}
 }
 function timerEvents(){
   const t=game.time,A=game.announced;
@@ -2201,7 +2206,7 @@ function boot(){
   const f=document.fonts&&document.fonts.load?Promise.all([document.fonts.load('800 50px "Big Shoulders Stencil Display"'),document.fonts.load('24px "Marcellus SC"')]):Promise.resolve();
   f.then(()=>{redrawPlates();drawLintels();}).catch(()=>{});
 }
-window.__carceri={NET,hostStart,netHost,netJoin,get game(){return game;},get player(){return player;},get chars(){return chars;},get LV(){return LV;},startRun,closeMap,openMap,setCam:y=>{camYaw=y;},setQuality,input,advance:(sec)=>{for(let t=0;t<sec;t+=1/30)update(1/30);},sim:(sec)=>{const n=Math.round(sec/HS);for(let i=0;i<n;i++){if(input.jumpBuf>0)input.jumpBuf-=HS;step(HS);}}};
+window.__carceri={NET,hostStart,netHost,netJoin,applyFog,get cfg(){return cfg;},get game(){return game;},get player(){return player;},get chars(){return chars;},get LV(){return LV;},startRun,closeMap,openMap,setCam:y=>{camYaw=y;},setQuality,input,advance:(sec)=>{for(let t=0;t<sec;t+=1/30)update(1/30);},sim:(sec)=>{const n=Math.round(sec/HS);for(let i=0;i<n;i++){if(input.jumpBuf>0)input.jumpBuf-=HS;step(HS);}}};
 boot();
 })();
 </script>
