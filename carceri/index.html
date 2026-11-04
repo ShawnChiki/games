@@ -61,6 +61,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--day);outline-of
 #hint.on{opacity:1}
 #joy{position:fixed;left:0;top:0;width:116px;height:116px;margin:-58px 0 0 -58px;border-radius:50%;border:1.5px solid rgba(255,241,207,.38);background:rgba(21,17,13,.18);pointer-events:none;z-index:6}
 #joyKnob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px;border-radius:50%;background:rgba(255,241,207,.55)}
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:9;transition:opacity .6s ease}
+#fade.on{opacity:1;transition:opacity .55s ease}
 #vignette{position:fixed;inset:0;pointer-events:none;z-index:4}
 #vignette.pulse{animation:vig 1s infinite}
 @keyframes vig{0%,100%{box-shadow:inset 0 0 160px 24px rgba(224,64,47,0)}50%{box-shadow:inset 0 0 170px 44px rgba(224,64,47,.5)}}
@@ -111,7 +113,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(56px,14vw,104px)
 .menu-btns button{width:100%}
 .btn-ghost:disabled{opacity:.55;cursor:default}
 .soon{display:inline-block;margin-left:8px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--stone-dim)}
-.parch{width:min(100%,460px);max-height:100%;overflow:auto;color:var(--paper-ink);border-radius:3px;padding:26px 24px 22px;display:flex;flex-direction:column;gap:12px;
+.parch{width:min(100%,460px);max-height:100%;overflow:hidden;color:var(--paper-ink);border-radius:3px;padding:26px 24px 22px;display:flex;flex-direction:column;gap:12px;
   background:radial-gradient(ellipse at 50% 40%,#efe6cf 0%,#e6d9bb 70%,#d6c49d 100%);box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 0 60px rgba(120,84,40,.22)}
 .parch h2{font-family:var(--f-display);font-weight:400;font-size:30px;line-height:1.1;margin:0;letter-spacing:.03em;text-wrap:balance}
 .parch h3{font-family:var(--f-display);font-weight:400;font-size:19px;margin:6px 0 0;letter-spacing:.04em}
@@ -124,15 +126,17 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(56px,14vw,104px)
 .ctl dd{margin:0;color:#5a4732}
 .btn-ink{align-self:flex-start;background:var(--paper-ink);color:var(--paper);border:0;border-radius:3px;padding:12px 22px;font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:6px}
 .btn-ink-ghost{background:transparent;color:var(--paper-ink);border:1px solid rgba(51,40,28,.45);border-radius:3px;padding:12px 18px;font-size:15px;font-weight:600}
-.row-actions{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap}
-.settings{display:flex;flex-direction:column;gap:14px;margin-top:4px}
-.set{display:flex;flex-direction:column;gap:6px}
+.row-actions{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:4px;padding-top:10px;border-top:1px solid rgba(51,40,28,.18);flex-wrap:wrap;flex:none}
+.scroller{flex:1 1 auto;min-height:0;overflow:auto;margin:0 -6px;padding:0 6px}
+.settings{display:flex;flex-direction:column;gap:8px;margin-top:2px}
+.set{display:grid;grid-template-columns:6.4em 1fr;align-items:center;gap:8px}
+.set .set-l{font-size:11px;letter-spacing:.1em;line-height:1.2}
 .numrow{display:flex;align-items:center;gap:10px}
-.numrow input{width:7.5em;font:600 18px var(--f-ui);color:var(--paper-ink);background:rgba(255,250,238,.6);border:1px solid rgba(51,40,28,.4);border-radius:3px;padding:8px 10px;font-variant-numeric:tabular-nums}
+.numrow input{width:5.5em;font:600 16px var(--f-ui);padding:6px 8px!important;color:var(--paper-ink);background:rgba(255,250,238,.6);border:1px solid rgba(51,40,28,.4);border-radius:3px;padding:8px 10px;font-variant-numeric:tabular-nums}
 .numrow span{font-size:15px;color:#6b5438}
 .set-l{font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#6b5438}
 .seg{display:flex;border:1px solid rgba(51,40,28,.4);border-radius:3px;overflow:hidden}
-.seg button{flex:1;min-width:0;padding:10px 4px;background:transparent;color:var(--paper-ink);border:0;border-left:1px solid rgba(51,40,28,.25);font-size:15px;font-weight:600;letter-spacing:.02em}
+.seg button{flex:1;min-width:0;padding:8px 2px;font-size:14px!important;background:transparent;color:var(--paper-ink);border:0;border-left:1px solid rgba(51,40,28,.25);font-size:15px;font-weight:600;letter-spacing:.02em}
 .seg button:first-child{border-left:0}
 .seg button[aria-pressed="true"]{background:var(--paper-ink);color:var(--paper)}
 .map-views{pointer-events:auto;width:min(100%,300px);margin:0 auto;background:rgba(235,226,204,.92)}
@@ -144,6 +148,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(56px,14vw,104px)
 <body>
 <canvas id="c"></canvas>
 <div id="vignette"></div>
+<div id="fade"></div>
 <div id="fx"></div>
 <div id="hud" hidden>
   <div id="tag"><span class="tag-k">Cell</span><span id="tagNum">000</span></div>
@@ -209,7 +214,7 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(56px,14vw,104px)
       <button id="hostBtn" class="btn-primary">Host a game</button>
       <div class="joinrow"><input id="joinCode" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Code" aria-label="4-digit game code"><button id="joinBtn" class="btn-ink">Join</button></div>
     </div>
-    <div id="lobRoom" hidden>
+    <div id="lobRoom" class="scroller" hidden>
       <p class="codeline">Game code <span id="lobCode" class="bigcode">0000</span></p>
       <ul id="lobPlayers" class="plist"></ul>
       <p id="lobNote" class="note"></p>
@@ -221,9 +226,8 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(56px,14vw,104px)
 </div>
 <div id="setup" class="screen" hidden>
   <div class="parch">
-    <p class="eyebrow ink">Single player</p>
     <h2>Set up the prison</h2>
-    <div id="settings" class="settings"></div>
+    <div class="scroller"><div id="settings" class="settings"></div></div>
     <div class="row-actions"><button id="setupBack" class="btn-ink-ghost">Back</button><button id="goBtn" class="btn-primary">Open the gates</button></div>
   </div>
 </div>
@@ -343,9 +347,11 @@ const T={
   stone:stoneTexture(7,[180,165,142],{rows:8,bw:150,jit:30,mortar:3,streaks:24}),
   pier:stoneTexture(19,[158,144,122],{rows:5,bw:220,jit:26,mortar:5,streaks:32,ns:3.2}),
   marble:stoneTexture(29,[220,212,196],{rows:2,bw:420,jit:8,mortar:1,streaks:8,ns:1}),
+  brick:stoneTexture(43,[164,98,72],{rows:16,bw:64,jit:34,mortar:2,streaks:26,ns:2.6}),
   floor:stoneTexture(37,[130,117,100],{rows:4,bw:128,jit:34,mortar:4,streaks:4}),
 };
 const MAT={
+  brick:new THREE.MeshStandardMaterial({map:T.brick.map,normalMap:T.brick.nm,roughness:.92,vertexColors:true}),
   stone:new THREE.MeshStandardMaterial({map:T.stone.map,normalMap:T.stone.nm,roughness:.93,vertexColors:true}),
   pier:new THREE.MeshStandardMaterial({map:T.pier.map,normalMap:T.pier.nm,normalScale:new THREE.Vector2(1.3,1.3),roughness:.95,vertexColors:true}),
   floor:new THREE.MeshStandardMaterial({map:T.floor.map,normalMap:T.floor.nm,roughness:.9,vertexColors:true}),
@@ -604,20 +610,28 @@ function tryPlan(o){
     if(hasP(p.a+1,p.b))tryArch(p.z,p.x+1.2,p.x+10-1.2,'x',ek(p.a+1,p.b,p.a+1,p.b+1));
   }
   // massing: walls between piers, pierced wherever a route passes (tunnels)
-  const walls=[],pW=[.3,.55,.78][D];
+  const walls=[],pW=[.4,.65,.85][D],cellNodes=(i,j)=>nodes.filter(n=>n.i===i&&n.j===j&&!n.gallery);
   const holes=(L,lo,hi)=>{const iv=(L||[]).map(v=>[Math.max(lo,v[0]),Math.min(hi,v[1])]).filter(v=>v[1]>v[0]).sort((a,b)=>a[0]-b[0]);
     const out=[];let c=lo;for(const [a,b] of iv){if(a>c+1.2)out.push([c,a]);c=Math.max(c,b);}if(hi>c+1.2)out.push([c,hi]);return out;};
   for(let i=-NB;i<=NB;i++)for(let j=-NB;j<=NB-1;j++)for(const [di,dj] of [[1,0],[0,1]]){
     const i2=i+di,j2=j+dj;if(i2>NB||j2>NB-1||rand()>pW)continue;
     const key=ek(i,j,i2,j2),top=rand()<.45?R(8,26):R(26,50),base=rand()<.7?FLOOR_Y:R(-16,6);
     if(top-base<6)continue;
-    walls.push({i,j,i2,j2,thick:rand()<.4,center:holes(eocc.get(key),base,top),side:holes(aocc.get(key),base,top)});
+    const w={i,j,i2,j2,thick:rand()<.55,brick:rand()<.35,center:holes(eocc.get(key),base,top),side:holes(aocc.get(key),base,top),secret:null};
+    // a secret passage: a fake cell door on each face, a tunnel through the wall between two platforms at the same height
+    if(w.thick&&rand()<[.5,.7,.85][D]){const d=di+','+dj,bd_=(-di)+','+(-dj);
+      for(const a of cellNodes(i,j))for(const b of cellNodes(i2,j2)){if(w.secret||Math.abs(a.y-b.y)>.35||a.used.has(d)||b.used.has(bd_))continue;
+        const y=Math.max(a.y,b.y);if(!w.center.some(([lo,hi])=>lo<=y-1&&hi>=y+3.6))continue;w.secret={y};a.used.add(d);b.used.add(bd_);}}
+    walls.push(w);
   }
   // cell blocks lining the outer walls, roofs at different heights
   const band=[],bP=[.55,.85,1][D];
   for(let j=-NB;j<=NB-1;j++)for(const sd of ['E','W'])if(rand()<bP)band.push({side:sd,c:j*CELL,top:R(8,sd==='W'?34:46)});
   for(let i=-NB;i<=NB;i++)if(rand()<bP)band.push({side:'N',c:i*CELL,top:R(8,46)});
-  return {nodes,conns,gal,exits,piers,arches,walls,band,density:D};
+  // hanging cages in the corners between piers
+  const cages=[];for(let k=0;k<[6,12,20][D];k++){const i=RI(-3,2),j=RI(-3,2),sx=rand()<.5?-1:1,sz=rand()<.5?-1:1,pc=piers.find(p=>p.x===i*CELL+sx*5&&p.z===j*CELL+sz*5);if(pc&&pc.half>2)continue;cages.push({x:i*CELL+sx*2.85,z:j*CELL+sz*2.85,y:R(-14,36),tall:rand()<.5});}
+  for(const p of piers)if(rand()<.3)p.brick=true;
+  return {nodes,conns,gal,exits,piers,arches,walls,band,cages,density:D};
 }
 function genPlan(seed,o){
   for(let s=0;s<30;s++){rand=mulberry32(seed+s*7919);for(let a=0;a<300;a++){const p=tryPlan(o);if(p){p.seed=seed;return p;}}}
@@ -629,8 +643,8 @@ let LV=null;
 function defMap(k){return (k==='wall'||k==='floor')?'none':k==='rail'?'rail':'fill';}
 function buildLevel(plan){
   solids=[];gridMap=new Map();beams=[];
-  const B={stone:new GB(1/3),pier:new GB(1/4),shell:new GB(1/4),floor:new GB(1/4),marble:new GB(1/2),wood:new GB(1/2),iron:new GB(1),glow:new GB(1)};
-  for(const k of ['stone','pier','shell','floor','marble'])B[k].yt=true;
+  const B={stone:new GB(1/3),pier:new GB(1/4),shell:new GB(1/4),floor:new GB(1/4),marble:new GB(1/2),wood:new GB(1/2),iron:new GB(1),glow:new GB(1),brick:new GB(1/2)};
+  for(const k of ['stone','pier','shell','floor','marble','brick'])B[k].yt=true;
   const group=new THREE.Group();
   const S=(x0,y0,z0,x1,y1,z1,kind,mat,o)=>{o=o||{};
     if(x0>x1)[x0,x1]=[x1,x0];if(y0>y1)[y0,y1]=[y1,y0];if(z0>z1)[z0,z1]=[z1,z0];
@@ -728,7 +742,7 @@ function buildLevel(plan){
   // piers
   for(const p of plan.piers){
     const q=p.half;
-    S(p.x-q,FLOOR_Y,p.z-q,p.x+q,CEIL_Y,p.z+q,'pier','pier');
+    S(p.x-q,FLOOR_Y,p.z-q,p.x+q,CEIL_Y,p.z+q,'pier',p.brick?'brick':'pier');
     S(p.x-q-.35,FLOOR_Y,p.z-q-.35,p.x+q+.35,FLOOR_Y+1.6,p.z+q+.35,'pier','pier');
     for(let y=FLOOR_Y+12;y<CEIL_Y-4;y+=12)Vb(p.x-q-.12,y,p.z-q-.12,p.x+q+.12,y+.45,p.z+q+.12,'stone');
     Vb(p.x-q-.5,CEIL_Y-2.2,p.z-q-.5,p.x+q+.5,CEIL_Y,p.z+q+.5,'stone');
@@ -751,7 +765,9 @@ function buildLevel(plan){
           if(cn.railL)rl(uA,uB,-wd+.08,y,true);if(cn.railR)rl(uA,uB,wd-.08,y,true);
           for(const w of [-wd+.08,wd-.08])for(const u of [uA+sg*1.5,uB-sg*1.5])beamBetween(B.iron,P(u,w,y+.9),P(u+sg*.4,w*.6,y+14),.035,.035);
         }else{bx(uA-sg*.1,uB+sg*.1,-wd,wd,y-.7,y,'bridge','stone');vb(uA+sg*.8,uB-sg*.8,-wd+.15,wd-.15,y-1.3,y-.7,'stone');
-          if(cn.railL)rl(uA,uB,-wd+.11,y);if(cn.railR)rl(uA,uB,wd-.11,y);}
+          if(rand()<.45){bx(uA,uB,-wd-.55,-wd,y-.7,y+3.3,'mass','pier');bx(uA,uB,wd,wd+.55,y-.7,y+3.3,'mass','pier');bx(uA-sg*.2,uB+sg*.2,-wd-.7,wd+.7,y+3.3,y+3.9,'mass','pier');
+            for(const u of [uA+sg*1.5,uA+sg*3,uA+sg*4.5])vb(u-.35,u+.35,-wd-.6,-wd+.02,y+1.2,y+2.2,'iron'),vb(u-.35,u+.35,wd-.02,wd+.6,y+1.2,y+2.2,'iron');}
+          else{if(cn.railL)rl(uA,uB,-wd+.11,y);if(cn.railR)rl(uA,uB,wd-.11,y);}}
         break;}
       case 'stair':{const nr=Math.max(3,Math.ceil(Math.abs(dy)/.3)),ns=nr-1,tr=6/ns,wd=cn.width/2,base=Math.min(y,ty)-.9;
         for(let k=0;k<ns;k++){const top=y+dy*(k+1)/nr,u0=uA+sg*tr*k,u1=uA+sg*tr*(k+1);
@@ -832,8 +848,18 @@ function buildLevel(plan){
   for(const w of plan.walls){
     const ax=w.i!==w.i2?0:2,ua=(ax===0?w.i:w.j)*CELL,cw=(ax===0?w.j:w.i)*CELL;
     const u0=w.thick?ua+2.4:ua+4.2,u1=w.thick?ua+7.6:ua+5.8;
-    const bx=(w0,w1,y0,y1)=>ax===0?S(u0,y0,cw+w0,u1,y1,cw+w1,'mass','pier'):S(cw+w0,y0,u0,cw+w1,y1,u1,'mass','pier');
-    for(const [a,b] of w.center){bx(-2.4,2.4,a,b);if(b-a>6.5&&rand()<.75){const y=Math.round(R(a+.6,b-4.3));niche(ax,-1,u0,cw,y);niche(ax,1,u1,cw,y);}}
+    const mt=w.brick?'brick':'pier',bx=(w0,w1,y0,y1)=>ax===0?S(u0,y0,cw+w0,u1,y1,cw+w1,'mass',mt):S(cw+w0,y0,u0,cw+w1,y1,u1,'mass',mt);
+    const sy=w.secret?w.secret.y:null;
+    for(const [a,b] of w.center){
+      if(sy!==null&&a<=sy-1&&b>=sy+3.6){bx(-2.4,2.4,a,sy);bx(-2.4,-.8,sy,sy+2.9);bx(.8,2.4,sy,sy+2.9);bx(-2.4,2.4,sy+2.9,b);
+        // tunnel floor joins the two platforms; the doors look like ordinary barred cells
+        if(ax===0)S(ua+2,sy-.4,cw-.8,ua+2.4,sy,cw+.8,'secret','stone',{map:'none'});else S(cw-.8,sy-.4,ua+2,cw+.8,sy,ua+2.4,'secret','stone',{map:'none'});
+        if(ax===0)S(ua+7.6,sy-.4,cw-.8,ua+8,sy,cw+.8,'secret','stone',{map:'none'});else S(cw-.8,sy-.4,ua+7.6,cw+.8,sy,ua+8,'secret','stone',{map:'none'});
+        for(const [f,sgn] of [[u0,-1],[u1,1]]){const box=(a0,a1,v0,v1,y0,y1,m)=>{const p0=f+sgn*a0,p1=f+sgn*a1;if(ax===0)Vb(p0,y0,cw+v0,p1,y1,cw+v1,m);else Vb(cw+v0,y0,p0,cw+v1,y1,p1,m);};
+          box(0,.3,-1.3,-.8,sy,sy+3.1,'stone');box(0,.3,.8,1.3,sy,sy+3.1,'stone');box(0,.38,-1.35,1.35,sy+2.9,sy+3.4,'stone');
+          for(let k=-2;k<=2;k++)if(k!==0&&k!==1)box(.12,.2,k*.3-.035,k*.3+.035,sy,sy+2.9,'iron');box(.12,.2,-.8,.8,sy+1.4,sy+1.48,'iron');}
+        continue;}
+      bx(-2.4,2.4,a,b);if(b-a>6.5&&rand()<.75){const y=Math.round(R(a+.6,b-4.3));niche(ax,-1,u0,cw,y);niche(ax,1,u1,cw,y);}}
     for(const [a,b] of w.side){bx(-3.8,-2.4,a,b);bx(2.4,3.8,a,b);}
   }
   // cell blocks lining the outer walls, with tiers of cells and walkways
@@ -842,8 +868,9 @@ function buildLevel(plan){
     else{S(a,y,u-.1,b,y+1,u+.1,'rail',null,{rail:true});Vb(a,y+.93,u-.04,b,y+1,u+.04,'iron');Vb(a,y+.45,u-.03,b,y+.5,u+.03,'iron');for(let t=a;t<=b+.01;t+=1.15)Vb(t-.04,y,u-.04,t+.04,y+1,u+.04,'iron');}};
   for(const b of plan.band){
     let w0=b.c-5,w1=b.c+5;if(b.c===-30)w0=-WALL;if(b.side==='N'&&b.c===30)w1=WALL;
-    const mk=(a0,a1,y0,y1)=>{if(a1-a0<.05||y1-y0<.05)return;if(b.side==='N')S(a0,y0,-WALL,a1,y1,-BAND,'mass','pier');else if(b.side==='E')S(BAND,y0,a0,WALL,y1,a1,'mass','pier');else S(-WALL,y0,a0,-BAND,y1,a1,'mass','pier');};
+    const mk=(a0,a1,y0,y1)=>{if(a1-a0<.05||y1-y0<.05)return;const mt=b.brick?'brick':'pier';if(b.side==='N')S(a0,y0,-WALL,a1,y1,-BAND,'mass',mt);else if(b.side==='E')S(BAND,y0,a0,WALL,y1,a1,'mass',mt);else S(-WALL,y0,a0,-BAND,y1,a1,'mass',mt);};
     const d=doors.find(d=>d.side===b.side&&Math.abs(d.c-b.c)<1);
+    b.brick=b.brick??rand()<.3;
     if(d){mk(w0,d.c-1.7,FLOOR_Y,b.top);mk(d.c+1.7,w1,FLOOR_Y,b.top);mk(d.c-1.7,d.c+1.7,FLOOR_Y,d.y0-1);mk(d.c-1.7,d.c+1.7,d.y1+.5,b.top);}else mk(w0,w1,FLOOR_Y,b.top);
     const nax=b.side==='N'?2:0,face=b.side==='E'?BAND:-BAND,sg=b.side==='E'?-1:1;
     if(nax===0)Vb(face,b.top-.45,w0,face+sg*.4,b.top,w1,'stone');else Vb(w0,b.top-.45,face,w1,b.top,face+sg*.4,'stone');
@@ -890,6 +917,15 @@ function buildLevel(plan){
   for(const p of plan.piers){for(const [da,db] of [[1,0],[0,1]]){const o=plan.piers.find(q=>q.a===p.a+da&&q.b===p.b+db);if(!o)continue;
     const y=CEIL_Y-3.2,a=new V3(p.x,y,p.z),b=new V3(o.x,y,o.z);beamBetween(B.wood,a,b,.45,.65);
     const m=a.clone().lerp(b,.5);beamBetween(B.wood,new V3(p.x+da*1.4,y-4,p.z+db*1.4),m.clone().add(new V3(-da*1.6,0,-db*1.6)),.25,.3);beamBetween(B.wood,new V3(o.x-da*1.4,y-4,o.z-db*1.4),m.clone().add(new V3(da*1.6,0,db*1.6)),.25,.3);}}
+  // hanging cages, most of them empty
+  for(const c of plan.cages){const h=c.tall?2.4:1.6,w=.7;if(!boxFree(c.x-w-.1,c.y-.3,c.z-w-.1,c.x+w+.1,c.y+h+.3,c.z+w+.1))continue;S(c.x-w,c.y-.1,c.z-w,c.x+w,c.y+h,c.z+w,'cage',null);
+    Vb(c.x-w,c.y-.1,c.z-w,c.x+w,c.y,c.z+w,'iron');Vb(c.x-w-.05,c.y+h,c.z-w-.05,c.x+w+.05,c.y+h+.1,c.z+w+.05,'iron');
+    for(let k=0;k<=6;k++){const t=-w+k*(2*w/6);Vb(c.x+t-.025,c.y,c.z-w,c.x+t+.025,c.y+h,c.z-w+.05,'iron');Vb(c.x+t-.025,c.y,c.z+w-.05,c.x+t+.025,c.y+h,c.z+w,'iron');Vb(c.x-w,c.y,c.z+t-.025,c.x-w+.05,c.y+h,c.z+t+.025,'iron');Vb(c.x+w-.05,c.y,c.z+t-.025,c.x+w,c.y+h,c.z+t+.025,'iron');}
+    beamBetween(B.iron,new V3(c.x,c.y+h+.1,c.z),new V3(c.x,CEIL_Y,c.z),.05,.05);}
+  // great wooden wheels high on the walls
+  for(const [x,z,ry] of [[-20,-WALL+.6,0],[WALL-.6,-14,Math.PI/2],[18,-WALL+.6,0]].slice(0,1+plan.density)){const rim=new THREE.TorusGeometry(3.6,.22,6,28),m=new THREE.Matrix4().makeTranslation(x,49,z).multiply(new THREE.Matrix4().makeRotationY(ry));
+    B.wood.geo(rim,m,[1,1]);for(let k=0;k<6;k++)B.wood.geo(new THREE.BoxGeometry(7.2,.22,.22),m.clone().multiply(new THREE.Matrix4().makeRotationZ(k*Math.PI/6)),[1,1]);
+    B.wood.geo(new THREE.CylinderGeometry(.5,.5,.9,10).rotateX(Math.PI/2),m,[1,1]);}
   // pulley wheels where chains meet the ceiling
   const wheelGeo=new THREE.TorusGeometry(.9,.09,5,18);const spoke=new THREE.BoxGeometry(1.7,.08,.08);const wm=new THREE.Matrix4();
   for(const c of chainPts){wm.makeTranslation(c.x+.9,CEIL_Y-2.2,c.z);B.iron.geo(wheelGeo,wm,[1,1]);for(let k=0;k<3;k++){wm.makeTranslation(c.x+.9,CEIL_Y-2.2,c.z).multiply(new THREE.Matrix4().makeRotationZ(k*Math.PI/3));B.iron.geo(spoke,wm,[1,1]);}
@@ -1483,6 +1519,7 @@ const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crow
     else if(kind==='tick'){this.nz(o,t,.02,'bandpass',3200,2,.5);this.tone(o,t,1250,1180,.05,'sine',.18,.002);}
     else{this.nz(o,t,.03,'bandpass',1900,1.6,.55);this.tone(o,t,520,470,.08,'sine',.3,.002);}},
   paper(){if(!this.on||!this.ctx)return;const t=this.ctx.currentTime+.01,o=this.out(null,.5,.2,.6).g;for(let k=0;k<5;k++)this.nz(o,t+k*.05+Math.random()*.03,.07,'bandpass',2500+Math.random()*2500,1.2,.35,.01);},
+  wake(){if(!this.ok())return;const t=this.ctx.currentTime,o=this.out(null,.7,.6,2).g;this.tone(o,t,110,220,1.4,'sine',.35,.4);this.nz(o,t,1.2,'lowpass',500,.7,.25,.5);},
   beep(){if(!this.ok())return;const t=this.ctx.currentTime;this.tone(this.out(null,.35,.5,.3).g,t,880,880,.14,'square',.25);},
   // ---- beds ----
   ambientBed(){const ctx=this.ctx;
@@ -1697,16 +1734,17 @@ function showDeathCard(){
   $('cardActions').innerHTML='';$('card').hidden=false;
   sfx.mode('death');
 }
-function requestRespawn(){if(game.state==='dead'&&game.deadPhase==='look'&&game.lookT>2.5)respawn();}
+function requestRespawn(){if(game.state==='dead'&&game.deadPhase==='look'&&game.lookT>1.5)respawn();}
 function startLook(){
   game.deadPhase='look';game.lookT=0;game.lookA=camYaw+Math.PI;
   const pe=player.joints[2],y=groundAt(pe.x,pe.z,pe.y+.4,pe.y-3);if(y!==null)addPuddle(pe.x,y,pe.z,1.5,.26);
-  showDeathCard();
+  let k;do{k=RIf(0,NCELLS-1);}while(k===game.cell);game.nextCell=k;sfx.mode('death');
 }
 const _fromP=new V3(),_fromQ=new THREE.Quaternion(),_toP=new V3(),_toQ=new THREE.Quaternion();
 function respawn(){
-  $('card').hidden=true;_fromP.copy(camera.position);_fromQ.copy(camera.quaternion);
-  game.cell=game.nextCell;player.isPlayer=false;spawnPlayer(game.cell);camDist=4.6;game.state='respawn';game.flyT=0;sfx.mode('play');
+  if(game.state==='respawn')return;game.state='respawn';game.flyT=0;$('fade').classList.add('on');
+  setTimeout(()=>{if(game.state!=='respawn')return;game.cell=game.nextCell;player.isPlayer=false;spawnPlayer(game.cell);camDist=4.6;
+    _ct.copy(player.pos);_ct.y+=1.45;camTarget.copy(_ct);game.state='play';sfx.mode('play');$('fade').classList.remove('on');sfx.wake();},650);
 }
 function endRun(won){
   game.state=won?'won':'lost';$('balance').hidden=true;$('mapBtn').hidden=true;$('joy').hidden=true;joyId=lookId=null;
@@ -1740,15 +1778,18 @@ function edgePt(a,b){const ax=a.i!==b.i?0:2,sg=ax===0?Math.sign(b.i-a.i):Math.si
 function buildRoute(){
   if(routeMesh){mapScene.remove(routeMesh);routeMesh.geometry.dispose();routeMesh=null;}
   if(!cfg.route||!player)return;
-  const start=nearestNode(player.pos),goals=new Set(LV.plan.exits.map(e=>e.node)),prev=new Map([[start,null]]),q=[start];let end=null;
-  while(q.length){const n=q.shift();if(goals.has(n)){end=n;break;}for(const c of n.conns){const m=c.a===n?c.b:c.a;if(!prev.has(m)){prev.set(m,n);q.push(m);}}}
-  if(!end)return;
-  const chain=[];for(let n=end;n;n=prev.get(n))chain.unshift(n);
-  const pts=[player.pos.clone().add(new V3(0,.35,0))];
-  for(let k=0;k<chain.length;k++){const n=chain[k],nx=chain[k+1];pts.push(nodeXYZ(n));if(nx&&!(n.gallery&&nx.gallery)){pts.push(edgePt(n,nx));pts.push(edgePt(nx,n));}}
-  const ex=LV.plan.exits.find(e=>e.node===end);pts.push(new V3(end.i*CELL+ex.dx*7,end.y+.35,end.j*CELL+ex.dz*7));
-  const gb=new GB(1);for(let k=0;k<pts.length-1;k++)if(pts[k].distanceTo(pts[k+1])>.05)beamBetween(gb,pts[k],pts[k+1],1,1);
-  routeMesh=new THREE.Mesh(gb.build(),new THREE.MeshBasicMaterial({color:0xff4d12,depthTest:false,transparent:true,opacity:.95,toneMapped:false}));routeMesh.renderOrder=6;mapScene.add(routeMesh);
+  const nbr=n=>n.conns.map(c=>c.a===n?c.b:c.a);
+  const bfs=srcs=>{const d=new Map();const q=[];for(const s0 of srcs){d.set(s0,0);q.push(s0);}while(q.length){const n=q.shift();for(const m of nbr(n))if(!d.has(m)){d.set(m,d.get(n)+1);q.push(m);}}return d;};
+  const start=nearestNode(player.pos),ds=bfs([start]),gb=new GB(1),seen=new Set();
+  const seg=(a,b)=>{if(a.distanceTo(b)>.05)beamBetween(gb,a,b,1,1);};
+  for(const ex of LV.plan.exits){const de=bfs([ex.node]),D=ds.get(ex.node);if(D==null)continue;
+    for(const c of LV.plan.conns){for(const [a,b] of [[c.a,c.b],[c.b,c.a]]){const da=ds.get(a),db=de.get(b);if(da==null||db==null||da+1+db>D+3)continue;
+      if(seen.has(c))continue;seen.add(c);if(a.gallery&&b.gallery){seg(nodeXYZ(a),nodeXYZ(b));continue;}
+      const A=nodeXYZ(a),Ae=edgePt(a,b),Be=edgePt(b,a),B=nodeXYZ(b);seg(A,Ae);seg(Ae,Be);seg(Be,B);}}
+    const n=ex.node;seg(nodeXYZ(n),new V3(n.i*CELL+ex.dx*7,n.y+.35,n.j*CELL+ex.dz*7));}
+  seg(player.pos.clone().add(new V3(0,.35,0)),nodeXYZ(start));
+  const g=gb.build();if(!g)return;
+  routeMesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xff4d12,depthTest:false,transparent:true,opacity:.9,toneMapped:false}));routeMesh.renderOrder=6;mapScene.add(routeMesh);
 }
 function openMap(first){
   if(!player)return;game.state='map';$('mapUI').hidden=false;buildRoute();sfx.paper();game.showYou=inCell(player)||cfg.carry===2;$('lblYou').hidden=!game.showYou;if(youPin)youPin.visible=game.showYou;$('mapClose').textContent=inCell(player)?'Into the prison':'Fold it away';$('hud').classList.add('on-map');$('mapBtn').hidden=true;$('balance').hidden=true;
@@ -1981,13 +2022,13 @@ let cfg=Object.assign({},CFG_DEF);try{const sv=JSON.parse(localStorage.getItem('
 if(!(cfg.crowd>=0&&cfg.crowd<CROWD.length))cfg.crowd=1;if(!(cfg.minutes>=.5&&cfg.minutes<=30))cfg.minutes=3;
 const SETTINGS=[
   {k:'exits',label:'Ways out',opts:[[1,'1'],[2,'2'],[3,'3']]},
-  {k:'routes',label:'Routes to each way out',opts:[[1,'1'],[2,'2'],[3,'3']]},
+  {k:'routes',label:'Routes to each',opts:[[1,'1'],[2,'2'],[3,'3']]},
   {k:'density',label:'Density',opts:[[0,'Open'],[1,'Dense'],[2,'Packed']]},
-  {k:'minutes',label:'Lockdown clock',type:'num',min:.5,max:30,step:.5,unit:'minutes'},
+  {k:'minutes',label:'Lockdown clock',type:'num',min:.5,max:30,step:.5,unit:'min'},
   {k:'crowd',label:'Other inmates',opts:[[0,'10'],[1,'30'],[2,'80'],[3,'200']]},
-  {k:'carry',label:'Carry the plan',opts:[[0,'No'],[1,'Yes'],[2,'Yes, showing me']]},
-  {k:'route',label:'Plan shows the way out',opts:[[0,'No'],[1,'Yes']]},
-  {k:'wayfind',label:'Wayfinding',opts:[[1,'Help me'],[0,'Get me lost']]},
+  {k:'carry',label:'Carry the plan',opts:[[0,'No'],[1,'Yes'],[2,'With me on it']]},
+  {k:'route',label:'Plan shows the ways out',opts:[[0,'No'],[1,'Yes']]},
+  {k:'wayfind',label:'Wayfinding',opts:[[1,'Help me'],[0,'Get lost']]},
 ];
 function renderSettings(el,pre='set',ro=false,onch=null){
   el.innerHTML=SETTINGS.map(s=>s.type==='num'
@@ -2032,7 +2073,7 @@ function updateCamera(dt){
   const hit=rayCast(camTarget,_cd,dist+.3),d=Math.max(.45,Math.min(dist,hit-.25));
   camDist=d<camDist?d:lerp(camDist,d,1-Math.exp(-dt*3));
   camera.position.copy(camTarget).addScaledVector(_cd,camDist);camera.lookAt(camTarget);
-  if(game.state==='respawn'){const k=Math.min(1,game.flyT/2),e=k*k*(3-2*k);_toP.copy(camera.position);_toQ.copy(camera.quaternion);
+  if(false){const k=Math.min(1,game.flyT/2),e=k*k*(3-2*k);_toP.copy(camera.position);_toQ.copy(camera.quaternion);
     camera.position.lerpVectors(_fromP,_toP,e);camera.position.y+=Math.sin(e*Math.PI)*10;camera.quaternion.slerpQuaternions(_fromQ,_toQ,e);}
 }
 
@@ -2076,8 +2117,7 @@ function update(dt){
     acc+=dt;let n=0;while(acc>=HS&&n<5){step(HS);acc-=HS;n++;}if(n>=5)acc=0;adaptQuality(dt);
     if(game.state==='dead'){game.deadT+=dt;
       if(game.deadPhase==='fall'&&((player.rag&&player.rag.asleep&&game.deadT>1.4)||game.deadT>6))startLook();
-      else if(game.deadPhase==='look'){game.lookT+=dt;if(game.lookT>8)respawn();}}
-    if(game.state==='respawn'){game.flyT+=dt;if(game.flyT>=2){game.state='play';hint('New cell, same clock. The plan is on the wall.');}}
+      else if(game.deadPhase==='look'){game.lookT+=dt;if(game.lookT>5.5)respawn();}}
     // population
     game.popTimer-=dt;if(game.popTimer<=0&&game.startedOnce&&['play','map','dead','respawn'].includes(game.state)){game.popTimer=.2;let alive=0;for(const c of chars)if(!c.isPlayer&&!c.dead)alive++;
       for(let k=0;k<3&&alive<Math.min(CROWD[cfg.crowd],game.popCap);k++,alive++)spawnSomewhere(FR(0,.8));}
