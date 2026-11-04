@@ -1907,13 +1907,15 @@ function netData(m,from){
 }
 // ---- lobby screens
 function showLobbyStart(){showScreen('lobby');$('lobStart').hidden=false;$('lobRoom').hidden=true;$('lobGo').hidden=$('readyBtn').hidden=$('micBtn').hidden=true;$('lobTitle').textContent='Break out together';}
-function showRoom(){showScreen('lobby');$('lobStart').hidden=true;$('lobRoom').hidden=false;$('micBtn').hidden=false;renderRoom();}
+function showRoom(){showScreen('lobby');$('lobSettings').dataset.mode='';$('lobSettings').dataset.key='';$('lobStart').hidden=true;$('lobRoom').hidden=false;$('micBtn').hidden=false;renderRoom();}
 function renderRoom(){
   if(!NET.on)return;$('lobCode').textContent=NET.code;$('lobTitle').textContent=NET.host?'Your game':'In the lobby';
   $('lobPlayers').innerHTML=NET.roster.map((r,i)=>`<li><span>${r.id===NET.id?'You':'Inmate '+(i+1)}${r.id===NET.hostId?' · host':''}</span><span class="st ${NET.ready[r.id]?'ok':''}">${NET.ready[r.id]?'Ready':'Not ready'}</span></li>`).join('');
   const all=NET.roster.every(r=>NET.ready[r.id]),alone=NET.roster.length<2;
   $('lobNote').textContent=NET.host?(alone?'Waiting for friends to join with the code.':all?'Everyone is ready.':'Waiting for everyone to tap Ready. Change the settings until you agree.'):'The host is choosing the settings. Tap Ready when you agree.';
-  if(!$('lobSettings').contains(document.activeElement))renderSettings($('lobSettings'),'lob',!NET.host,()=>{if(NET.host){for(const id in NET.ready)if(id!==NET.id)NET.ready[id]=false;sendRoster();}});
+  const ls=$('lobSettings'),key=(NET.host?'h':'g')+JSON.stringify(SETTINGS.map(x=>cfg[x.k]));
+  if(NET.host?ls.dataset.mode!=='h':(ls.dataset.key!==key&&!ls.contains(document.activeElement))){ls.dataset.mode=NET.host?'h':'g';ls.dataset.key=key;
+    renderSettings(ls,'lob',!NET.host,()=>{if(!NET.host)return;for(const id in NET.ready)if(id!==NET.id)NET.ready[id]=false;clearTimeout(NET.cfgTO);NET.cfgTO=setTimeout(sendRoster,120);});}
   $('lobGo').hidden=!NET.host;$('lobGo').disabled=alone||!all;$('readyBtn').hidden=NET.host;$('readyBtn').textContent=NET.ready[NET.id]?'Not ready':"I'm ready";
   $('micBtn').textContent=VOICE.muted?'Mic off':'Mic on';
 }
@@ -2035,8 +2037,8 @@ function renderSettings(el,pre='set',ro=false,onch=null){
     ?`<div class="set"><label class="set-l" for="${pre}-${s.k}">${s.label}</label><div class="numrow"><input id="${pre}-${s.k}" ${ro?'disabled':''} data-k="${s.k}" type="number" inputmode="decimal" min="${s.min}" max="${s.max}" step="${s.step}" value="${cfg[s.k]}"><span>${s.unit}</span></div></div>`
     :`<div class="set"><span class="set-l" id="${pre}l-${s.k}">${s.label}</span><div class="seg" role="group" aria-labelledby="${pre}l-${s.k}">${s.opts.map(([v,t])=>`<button ${ro?'disabled':''} data-k="${s.k}" data-v="${v}" aria-pressed="${cfg[s.k]===v}">${t}</button>`).join('')}</div></div>`).join('');
   const save=()=>{try{localStorage.setItem('carceri-cfg',JSON.stringify(cfg));}catch(_){}if(onch)onch();};
-  el.onclick=e=>{const b=e.target.closest('button[data-k]');if(!b)return;cfg[b.dataset.k]=+b.dataset.v;save();
-    for(const x of el.querySelectorAll(`button[data-k="${b.dataset.k}"]`))x.setAttribute('aria-pressed',String(x===b));};
+  el.onclick=e=>{const b=e.target.closest('button[data-k]');if(!b||b.disabled)return;cfg[b.dataset.k]=+b.dataset.v;
+    for(const x of el.querySelectorAll(`button[data-k="${b.dataset.k}"]`))x.setAttribute('aria-pressed',String(x===b));save();};
   for(const inp of el.querySelectorAll('input[type=number]')){const st=SETTINGS.find(s=>s.k===inp.dataset.k);
     const read=fix=>{let v=parseFloat(inp.value);if(!isFinite(v))v=CFG_DEF[st.k];v=clamp(v,st.min,st.max);cfg[st.k]=v;save();if(fix)inp.value=String(v);};
     inp.oninput=()=>read(false);inp.onchange=()=>read(true);inp.onblur=()=>read(true);}
