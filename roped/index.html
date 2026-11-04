@@ -487,92 +487,131 @@ function buildBackground() {
 }
 buildBackground();
 
-/* ---------- climbers: a bendy bean with two-bone limbs, a face and long hair that hangs to its own "down" ---------- */
-const BEAN = (() => {
-  const raw = [[0, 0], [0.22, 0.02], [0.34, 0.1], [0.385, 0.24], [0.365, 0.38], [0.3, 0.5], [0.275, 0.56], [0.31, 0.64], [0.345, 0.75], [0.315, 0.88], [0.2, 0.98], [0, 1.02]];
-  const prof = new THREE.SplineCurve(raw.map(([r, h]) => new THREE.Vector2(r, h))).getPoints(24);
-  prof[0].x = 0; prof[prof.length - 1].x = 0;
-  const g = new THREE.LatheGeometry(prof, 28); g.translate(0, -0.46, 0); g.computeVertexNormals(); return g;
-})();
-const BEAN_P = BEAN.attributes.position.array, BEAN_N = BEAN.attributes.normal.array;
-function seg(r, len) { const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 8), WHITE); m.add(new THREE.Mesh(new THREE.CapsuleGeometry(r + 0.026, len, 4, 8), INK)); return m; }
-function ball(r, sy) { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), WHITE); m.add(new THREE.Mesh(new THREE.SphereGeometry(r + 0.026, 12, 9), INK)); m.scale.set(1, sy || 1, 1); return m; }
-function limb(group, r, l1, l2, er, esy) { const L = { a: seg(r, l1), b: seg(r * 0.92, l2), e: ball(er, esy), l1, l2, tgt: V(), init: false }; group.add(L.a, L.b, L.e); return L; }
-const HAIR_N = 7, HAIR_S = 11, HAIR_SEG = 0.07;
+/* ---------- climbers: one jelly body (a smooth blend of belly, head, arms and legs, meshed live), a face and long hair that hangs to its own "down" ---------- */
+const JN = 28, JMIN = V(-0.95, -1.08, -0.95), JMAX = V(0.95, 1.0, 0.95), JS = JMAX.clone().sub(JMIN).divideScalar(JN - 1);
+const JMAXV = 7000, JMAXI = 42000;
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+// outline: the same jelly surface pushed out along its normals, drawn inside-out in ink
+const INK_JELLY = new THREE.MeshBasicMaterial({ color: 0x161412, side: THREE.BackSide });
+INK_JELLY.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normal * 0.032;'); };
+function makeJelly() {
+  const geo = new THREE.BufferGeometry();
+  const pos = new THREE.BufferAttribute(new Float32Array(JMAXV * 3), 3), nor = new THREE.BufferAttribute(new Float32Array(JMAXV * 3), 3), idx = new THREE.BufferAttribute(new Uint32Array(JMAXI), 1);
+  pos.setUsage(THREE.DynamicDrawUsage); nor.setUsage(THREE.DynamicDrawUsage); idx.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('position', pos); geo.setAttribute('normal', nor); geo.setIndex(idx); geo.setDrawRange(0, 0);
+  geo.boundingSphere = new THREE.Sphere(V(), 1.6);
+  return { geo, f: new Float32Array(JN * JN * JN), vid: new Int32Array(JN * JN * JN) };
+}
+// distance to a primitive: { s: sphere center, r } or { a, b, r } capsule; sy squashes a sphere
+function primDist(pr, x, y, z) {
+  if (pr.b) { const ax = pr.b.x - pr.a.x, ay = pr.b.y - pr.a.y, az = pr.b.z - pr.a.z, px = x - pr.a.x, py = y - pr.a.y, pz = z - pr.a.z;
+    let t = (px * ax + py * ay + pz * az) / (ax * ax + ay * ay + az * az || 1e-6); t = t < 0 ? 0 : t > 1 ? 1 : t; const dx = px - ax * t, dy = py - ay * t, dz = pz - az * t; return Math.sqrt(dx * dx + dy * dy + dz * dz) - pr.r; }
+  const dx = x - pr.s.x, dy = (y - pr.s.y) / (pr.sy || 1), dz = z - pr.s.z; return Math.sqrt(dx * dx + dy * dy + dz * dz) - pr.r;
+}
+function meshJelly(J, prims) {
+  const f = J.f, N = JN, N2 = N * N; f.fill(0.3);
+  for (const pr of prims) { // only touch the grid near each part
+    const pad = pr.r * (pr.sy || 1) + pr.k + 0.02; let lo, hi;
+    if (pr.b) { lo = V(Math.min(pr.a.x, pr.b.x), Math.min(pr.a.y, pr.b.y), Math.min(pr.a.z, pr.b.z)); hi = V(Math.max(pr.a.x, pr.b.x), Math.max(pr.a.y, pr.b.y), Math.max(pr.a.z, pr.b.z)); } else { lo = pr.s.clone(); hi = pr.s.clone(); }
+    const i0 = Math.max(0, Math.floor((lo.x - pad - JMIN.x) / JS.x)), i1 = Math.min(N - 1, Math.ceil((hi.x + pad - JMIN.x) / JS.x));
+    const j0 = Math.max(0, Math.floor((lo.y - pad - JMIN.y) / JS.y)), j1 = Math.min(N - 1, Math.ceil((hi.y + pad - JMIN.y) / JS.y));
+    const k0 = Math.max(0, Math.floor((lo.z - pad - JMIN.z) / JS.z)), k1 = Math.min(N - 1, Math.ceil((hi.z + pad - JMIN.z) / JS.z));
+    for (let k = k0; k <= k1; k++) { const z = JMIN.z + k * JS.z; for (let j = j0; j <= j1; j++) { const y = JMIN.y + j * JS.y, row = k * N2 + j * N;
+      for (let i = i0; i <= i1; i++) { const d = primDist(pr, JMIN.x + i * JS.x, y, z), o = row + i, fo = f[o], kk = pr.k; if (d >= fo + kk) continue; if (fo >= d + kk) { f[o] = d; continue; } const hh = (kk - Math.abs(fo - d)) / kk; f[o] = Math.min(fo, d) - hh * hh * kk * 0.25; } } }
+  }
+  // surface nets: one vertex per cell the surface passes through, one quad per crossing edge
+  const P = J.geo.attributes.position.array, Nn = J.geo.attributes.normal.array, I = J.geo.index.array, vid = J.vid; vid.fill(-1);
+  let nv = 0, ni = 0; const c = new Float32Array(8);
+  for (let k = 0; k < N - 1; k++) for (let j = 0; j < N - 1; j++) for (let i = 0; i < N - 1; i++) {
+    const o = k * N2 + j * N + i; let mask = 0;
+    for (let b = 0; b < 8; b++) { const v = f[o + (b & 1) + (b & 2 ? N : 0) + (b & 4 ? N2 : 0)]; c[b] = v; if (v < 0) mask |= 1 << b; }
+    if (mask === 0 || mask === 255 || nv >= JMAXV) { vid[o] = -1; continue; }
+    let sx = 0, sy = 0, sz = 0, n = 0;
+    for (const [a, b] of EDGES) { const va = c[a], vb = c[b]; if ((va < 0) === (vb < 0)) continue; const t = va / (va - vb);
+      sx += (a & 1) + ((b & 1) - (a & 1)) * t; sy += (a & 2 ? 1 : 0) + (((b & 2) ? 1 : 0) - ((a & 2) ? 1 : 0)) * t; sz += (a & 4 ? 1 : 0) + (((b & 4) ? 1 : 0) - ((a & 4) ? 1 : 0)) * t; n++; }
+    const q = nv * 3; P[q] = JMIN.x + (i + sx / n) * JS.x; P[q + 1] = JMIN.y + (j + sy / n) * JS.y; P[q + 2] = JMIN.z + (k + sz / n) * JS.z;
+    let gx = c[1] + c[3] + c[5] + c[7] - c[0] - c[2] - c[4] - c[6], gy = c[2] + c[3] + c[6] + c[7] - c[0] - c[1] - c[4] - c[5], gz = c[4] + c[5] + c[6] + c[7] - c[0] - c[1] - c[2] - c[3];
+    const gl = Math.hypot(gx, gy, gz) || 1; Nn[q] = gx / gl; Nn[q + 1] = gy / gl; Nn[q + 2] = gz / gl;
+    vid[o] = nv++;
+  }
+  const quad = (a, b, cc, d, flip) => { if (a < 0 || b < 0 || cc < 0 || d < 0 || ni + 6 > JMAXI) return; if (flip) { I[ni++] = a; I[ni++] = cc; I[ni++] = b; I[ni++] = a; I[ni++] = d; I[ni++] = cc; } else { I[ni++] = a; I[ni++] = b; I[ni++] = cc; I[ni++] = a; I[ni++] = cc; I[ni++] = d; } };
+  for (let k = 1; k < N - 1; k++) for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
+    const o = k * N2 + j * N + i, inside = f[o] < 0;
+    if (i < N - 1 && inside !== (f[o + 1] < 0)) quad(vid[o], vid[o - N], vid[o - N - N2], vid[o - N2], !inside);
+    if (j < N - 1 && inside !== (f[o + N] < 0)) quad(vid[o], vid[o - N2], vid[o - 1 - N2], vid[o - 1], !inside);
+    if (k < N - 1 && inside !== (f[o + N2] < 0)) quad(vid[o], vid[o - 1], vid[o - 1 - N], vid[o - N], !inside);
+  }
+  J.geo.attributes.position.needsUpdate = true; J.geo.attributes.normal.needsUpdate = true; J.geo.index.needsUpdate = true;
+  J.geo.attributes.position.updateRange.count = nv * 3; J.geo.attributes.normal.updateRange.count = nv * 3; J.geo.index.updateRange.count = ni;
+  J.geo.setDrawRange(0, ni);
+}
+const HAIR_N = 7, HAIR_S = 10, HAIR_SEG = 0.072;
 function makeClimber(role) {
-  const root = new THREE.Group();
-  const body = new THREE.Mesh(BEAN.clone(), WHITE), out = new THREE.Mesh(BEAN.clone(), INK); root.add(body, out);
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.385, 0.032, 8, 36), INK_F); belt.rotation.x = Math.PI / 2; belt.position.y = -0.17; root.add(belt);
+  const root = new THREE.Group(), J = makeJelly();
+  const body = new THREE.Mesh(J.geo, WHITE), out = new THREE.Mesh(J.geo, INK_JELLY); body.frustumCulled = out.frustumCulled = false; root.add(body, out);
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.034, 8, 36), INK_F); belt.rotation.x = Math.PI / 2; root.add(belt);
   const head = new THREE.Group(); root.add(head);
   const eyes = [];
   for (const sx of [-1, 1]) {
-    const eg = new THREE.Group(); eg.position.set(sx * 0.12, 0.04, 0.315); head.add(eg);
+    const eg = new THREE.Group(); eg.position.set(sx * 0.12, 0.04, 0.3); head.add(eg);
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.066, 14, 10), INK_F); e.scale.set(0.95, 1.35, 0.6); eg.add(e);
     const hl = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.position.set(0.02, 0.04, 0.04); eg.add(hl); eyes.push(eg);
-    const bl = new THREE.Mesh(new THREE.CircleGeometry(0.048, 18), new THREE.MeshBasicMaterial({ color: 0xff8fc7, transparent: true, opacity: 0.85 })); bl.position.set(sx * 0.215, -0.06, 0.285); bl.lookAt(sx * 0.7, -0.1, 1.4); head.add(bl);
+    const bl = new THREE.Mesh(new THREE.CircleGeometry(0.048, 18), new THREE.MeshBasicMaterial({ color: 0xff8fc7, transparent: true, opacity: 0.85 })); bl.position.set(sx * 0.2, -0.06, 0.29); bl.lookAt(sx * 0.7, -0.1, 1.4); head.add(bl);
   }
-  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.048, 14, 9), INK_F); mouth.position.set(0, -0.095, 0.325); head.add(mouth);
-  const limbs = new THREE.Group();
-  const arms = [limb(limbs, 0.062, 0.25, 0.25, 0.088, 1), limb(limbs, 0.062, 0.25, 0.25, 0.088, 1)];
-  const legs = [limb(limbs, 0.072, 0.16, 0.16, 0.095, 0.7), limb(limbs, 0.072, 0.16, 0.16, 0.095, 0.7)];
-  // hair: verlet strands of ink beads, tipped with this climber's colour
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.048, 14, 9), INK_F); mouth.position.set(0, -0.095, 0.31); head.add(mouth);
+  const limb = () => ({ tgt: V(), init: false, S: V(), E: V(), H: V() });
   const hairMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), INK_F, HAIR_N * HAIR_S);
   const tips = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), toon({ color: ROLES[role].hue }), HAIR_N);
-  const strands = []; for (let i = 0; i < HAIR_N; i++) { const a = (i / HAIR_N) * Math.PI * 2; strands.push({ anchor: V(Math.cos(a) * 0.2, 0.47, Math.sin(a) * 0.2 - 0.05), p: [], q: [] }); }
-  return { role, root, body, out, belt, head, eyes, mouth, arms, legs, limbs, hairMesh, tips, strands, quat: new THREE.Quaternion(), lean: V(), strain: 0, blinkT: rnd(1, 3), blink: 0, lookT: rnd(2, 5), lookAway: 0, lookDir: V(), mouthOpen: 0, init: false, phase: rnd(0, 6) };
+  hairMesh.frustumCulled = false; tips.frustumCulled = false;
+  const strands = []; for (let i = 0; i < HAIR_N; i++) { const a = (i / HAIR_N) * Math.PI * 2; strands.push({ anchor: V(Math.cos(a) * 0.19, 0.5, Math.sin(a) * 0.19 - 0.06), p: [], q: [] }); }
+  return { role, root, J, belt, head, eyes, mouth, arms: [limb(), limb()], legs: [limb(), limb()], hairMesh, tips, strands, quat: new THREE.Quaternion(), lean: V(),
+    jig: V(), jigV: V(), lastP: null, lastV: V(), strain: 0, blinkT: rnd(1, 3), blink: 0, lookT: rnd(2, 5), lookAway: 0, lookDir: V(), mouthOpen: 0, init: false, meshT: 0 };
 }
-function addClimber(ch) { scene.add(ch.root, ch.limbs, ch.hairMesh, ch.tips); }
-function deform(ch, lean, s) {
-  const P = ch.body.geometry.attributes.position, O = ch.out.geometry.attributes.position, a = P.array, o = O.array, sxz = 1 / Math.sqrt(s);
-  for (let i = 0; i < a.length; i += 3) {
-    const x = BEAN_P[i], y = BEAN_P[i + 1], z = BEAN_P[i + 2], t = y + 0.46, k = t * t * 0.75;
-    const nx = x * sxz + lean.x * k, ny = y * s - (lean.x * lean.x + lean.z * lean.z) * k * 0.4, nz = z * sxz + lean.z * k;
-    a[i] = nx; a[i + 1] = ny; a[i + 2] = nz; o[i] = nx + BEAN_N[i] * 0.03; o[i + 1] = ny + BEAN_N[i + 1] * 0.03; o[i + 2] = nz + BEAN_N[i + 2] * 0.03;
-  }
-  P.needsUpdate = true; O.needsUpdate = true;
-}
-const leanAt = (ch, t) => V(ch.lean.x * t * t * 0.75, 0, ch.lean.z * t * t * 0.75);
-const Yv = V(0, 1, 0);
-function placeBone(m, p0, p1) { m.position.copy(p0).add(p1).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(Yv, p1.clone().sub(p0).normalize()); }
-function solveLimb(L, S, T, pole) {
-  const d = T.clone().sub(S); let dist = d.length(); const reach = L.l1 + L.l2 - 0.002;
+function addClimber(ch) { scene.add(ch.root, ch.hairMesh, ch.tips); }
+function ik(L, S, T, pole, l1, l2) {
+  const d = T.clone().sub(S); let dist = d.length(); const reach = l1 + l2 - 0.002;
   if (dist > reach) { d.setLength(reach); dist = reach; } if (dist < 0.04) { d.set(0, -0.04, 0); dist = 0.04; }
   const H = S.clone().add(d), dn = d.clone().normalize();
-  const a = (L.l1 * L.l1 - L.l2 * L.l2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, L.l1 * L.l1 - a * a));
+  const a = (l1 * l1 - l2 * l2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
   const pn = pole.clone().addScaledVector(dn, -pole.dot(dn)); if (pn.lengthSq() < 1e-6) pn.set(1, 0, 0); pn.normalize();
-  const E = S.clone().addScaledVector(dn, a).addScaledVector(pn, h);
-  placeBone(L.a, S, E); placeBone(L.b, E, H); L.e.position.copy(H);
+  L.S.copy(S); L.E.copy(S).addScaledVector(dn, a).addScaledVector(pn, h); L.H.copy(H);
 }
 const tmpM = new THREE.Matrix4(), tq = new THREE.Quaternion(), iq = new THREE.Quaternion(), hairM = new THREE.Matrix4(), hairQ = new THREE.Quaternion(), hairS = V();
-// s: a view of the climber { p, up, state, speed, vel, grabPt, grabN, mouth, airT }, o: its partner's position, rope: { taut, dir }
+// s: a view of the climber { p, up, state, speed, vel, grabPt, grabN, mouth, airT }, o: its partner, rope: { taut, dir }
 function animClimber(ch, s, o, rope, dt, time) {
   const p = s.p, up = s.up;
   const holding = rope.taut && o.state === 'air' && s.state !== 'air';
   ch.strain = lerp(ch.strain, holding ? 1 : 0, 1 - Math.pow(0.02, dt));
-  const strain = ch.strain, jit = strain * 0.012;
-  ch.root.position.copy(p).add(V(rnd(-jit, jit), rnd(-jit, jit), rnd(-jit, jit)));
+  const strain = ch.strain;
+  ch.root.position.copy(p);
   // facing
   let fwd;
   if (s.state === 'grab') fwd = s.grabN.clone().negate();
   else if (s.speed > 0.4 && s.vel) fwd = s.vel.clone();
   else fwd = s.look ? s.look.clone() : o.p.clone().sub(p);
-  fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-4) fwd.copy(V(0, 0, 1)).addScaledVector(up, -up.z);
+  fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-4) fwd.set(0, 0, 1).addScaledVector(up, -up.z);
   fwd.normalize();
   const xA = V().crossVectors(up, fwd).normalize(), zA = V().crossVectors(xA, up);
   tmpM.makeBasis(xA, up, zA); tq.setFromRotationMatrix(tmpM);
-  if (!ch.init) ch.quat.copy(tq); ch.quat.slerp(tq, 1 - Math.pow(0.0006, dt)); ch.root.quaternion.copy(ch.quat);
+  if (!ch.init) { ch.quat.copy(tq); ch.lastP = p.clone(); }
+  ch.quat.slerp(tq, 1 - Math.pow(0.0006, dt)); ch.root.quaternion.copy(ch.quat);
   iq.copy(ch.quat).invert();
   const toLocal = v => v.clone().applyQuaternion(iq), toWorld = v => v.clone().applyQuaternion(ch.quat).add(p);
+  // jelly wobble: a damped spring driven by how the body accelerates
+  const vel = dt > 0 ? p.clone().sub(ch.lastP).divideScalar(dt) : V(); const acc = vel.clone().sub(ch.lastV).divideScalar(Math.max(dt, 1e-3)).clampLength(0, 60);
+  ch.lastP.copy(p); ch.lastV.copy(vel);
+  ch.jigV.addScaledVector(toLocal(acc), -0.012).addScaledVector(ch.jig, -150 * dt).multiplyScalar(Math.exp(-7 * dt));
+  ch.jig.addScaledVector(ch.jigV, dt).clampLength(0, 0.14);
   // lean away from a load; trail motion when flying
   let leanW = V();
-  if (holding) leanW.copy(rope.dir).multiplyScalar(-0.26 * strain);
-  else if (s.state === 'air' && s.vel) leanW.copy(s.vel).multiplyScalar(-0.03).clampLength(0, 0.2);
-  else if (s.speed > 0.4 && s.vel) leanW.copy(s.vel).setLength(0.07);
+  if (holding) leanW.copy(rope.dir).multiplyScalar(-0.24 * strain);
+  else if (s.speed > 0.4 && s.vel) leanW.copy(s.vel).setLength(0.06);
   const lt = toLocal(leanW); lt.y = 0; ch.lean.lerp(lt, 1 - Math.pow(0.002, dt));
-  const squash = 1 + strain * 0.05 + (s.state === 'air' ? 0.04 : 0);
-  deform(ch, ch.lean, squash);
-  const hl = leanAt(ch, 0.76); ch.head.position.set(hl.x, 0.3 * squash, hl.z); ch.head.rotation.set(ch.lean.z * 0.9, 0, -ch.lean.x * 0.9);
-  const bl = leanAt(ch, 0.29); ch.belt.position.set(bl.x, -0.17 * squash, bl.z);
+  const sq = 1 - ch.jig.y * 1.2;
+  const bellyC = V(ch.jig.x * 0.4, -0.18 + ch.jig.y * 0.4, ch.jig.z * 0.4), headC = V(ch.lean.x * 0.6 + ch.jig.x, 0.27 * sq + ch.jig.y, ch.lean.z * 0.6 + ch.jig.z);
+  ch.head.position.copy(headC); ch.head.rotation.set(ch.lean.z * 0.8 + ch.jig.z * 1.5, 0, -ch.lean.x * 0.8 - ch.jig.x * 1.5);
+  ch.belt.position.set(bellyC.x, bellyC.y + 0.02, bellyC.z);
   // eyes: blink, look at your partner, sometimes glance away
   ch.blinkT -= dt; if (ch.blinkT < 0) { ch.blink = 0.14; ch.blinkT = rnd(1.6, 4.4); } ch.blink = Math.max(0, ch.blink - dt);
   ch.lookT -= dt; if (ch.lookT < 0) { ch.lookAway = rnd(0.5, 1.4); ch.lookT = rnd(2.2, 5); ch.lookDir.set(rnd(-1, 1), rnd(-0.6, 0.8), 0.4).normalize(); if (Math.random() < 0.4) ch.blink = 0.14; }
@@ -580,51 +619,67 @@ function animClimber(ch, s, o, rope, dt, time) {
   const look = (ch.lookAway > 0 && strain < 0.3) ? ch.lookDir.clone() : toLocal(o.p.clone().sub(p).normalize());
   const lx = clamp(look.x, -1, 1) * 0.05, ly = clamp(look.y, -1, 1) * 0.04;
   ch.eyes.forEach((e, k) => { e.position.x = lerp(e.position.x, (k ? 0.12 : -0.12) + lx, 0.25); e.position.y = lerp(e.position.y, 0.04 + ly, 0.25); e.scale.set(1, ch.blink > 0 ? 0.12 : 1 - strain * 0.5, 1); });
-  // mouth follows the voice; a gasp when falling
   const open = Math.max(s.mouth || 0, s.state === 'air' && s.airT > 0.5 ? 0.8 : 0);
   ch.mouthOpen = lerp(ch.mouthOpen, open, 0.4);
   ch.mouth.scale.set(1.5 - ch.mouthOpen * 0.4 + strain * 0.7, 0.35 + ch.mouthOpen * 1.4 - strain * 0.12, 0.5);
-  // limbs
-  const shL = k => toWorld(V((k ? 1 : -1) * 0.3, 0.03, 0.02).add(leanAt(ch, 0.49)));
-  const hipL = k => toWorld(V((k ? 1 : -1) * 0.17, -0.34, 0.02).add(leanAt(ch, 0.12)));
+  // limbs (worked out in world space, then meshed into the one jelly body)
+  const shL = k => toWorld(V((k ? 1 : -1) * 0.26, 0.02, 0.02).add(V(ch.lean.x * 0.3, 0, ch.lean.z * 0.3)));
+  const hipL = k => toWorld(V((k ? 1 : -1) * 0.16, -0.38, 0.02));
   const ground = p.clone().addScaledVector(up, -0.46), walking = s.state === 'ground' && s.speed > 0.4, climbing = s.state === 'grab' && s.speed > 0.2;
-  const cyc = time * (climbing ? 7 : 4 + s.speed * 1.8);
-  const kq = 1 - Math.pow(0.0004, dt);
+  const cyc = time * (climbing ? 7 : 4 + s.speed * 1.8), kq = 1 - Math.pow(0.0004, dt);
   for (let k = 0; k < 2; k++) {
     const side = k ? 1 : -1, S = shL(k), H = hipL(k), ph = cyc + k * Math.PI;
     let T, poleV = xA.clone().multiplyScalar(side).addScaledVector(up, -0.6);
     if (s.state === 'grab') {
-      T = s.grabPt.clone().addScaledVector(s.grabN, 0.06).addScaledVector(xA, side * 0.16).addScaledVector(up, 0.22 + (climbing ? Math.max(0, Math.cos(ph)) * 0.1 : 0));
-      if (s.grabKind === 'pole') T = s.grabPt.clone().addScaledVector(s.grabAxis || xA, side * 0.14).addScaledVector(s.grabN, 0.05);
-    } else if (rope.taut && k === 1) T = p.clone().addScaledVector(rope.dir, 0.62).addScaledVector(up, -0.1);
-    else if (s.state === 'air') T = S.clone().addScaledVector(up, 0.32).addScaledVector(xA, side * 0.22).addScaledVector(zA, Math.sin(time * 14 + k * 2) * 0.15);
-    else if (walking) T = S.clone().addScaledVector(up, -0.36).addScaledVector(zA, Math.sin(ph) * 0.16).addScaledVector(xA, side * 0.06);
-    else T = S.clone().addScaledVector(up, -0.36).addScaledVector(xA, side * 0.1).addScaledVector(zA, 0.06 + Math.sin(time * 2 + k) * 0.03);
-    const A = ch.arms[k]; if (!A.init) { A.tgt.copy(T); A.init = true; } A.tgt.lerp(T, kq); solveLimb(A, S, A.tgt, poleV);
+      T = s.grabPt.clone().addScaledVector(s.grabN, 0.07).addScaledVector(xA, side * 0.16).addScaledVector(up, 0.22 + (climbing ? Math.max(0, Math.cos(ph)) * 0.1 : 0));
+      if (s.grabKind === 'pole') T = s.grabPt.clone().addScaledVector(s.grabAxis || xA, side * 0.14).addScaledVector(s.grabN, 0.06);
+    } else if (rope.taut && k === 1) T = p.clone().addScaledVector(rope.dir, 0.6).addScaledVector(up, -0.1);
+    else if (s.state === 'air') T = S.clone().addScaledVector(up, 0.3).addScaledVector(xA, side * 0.22).addScaledVector(zA, Math.sin(time * 9 + k * 2) * 0.12);
+    else if (walking) T = S.clone().addScaledVector(up, -0.34).addScaledVector(zA, Math.sin(ph) * 0.15).addScaledVector(xA, side * 0.08);
+    else T = S.clone().addScaledVector(up, -0.34).addScaledVector(xA, side * 0.12).addScaledVector(zA, 0.06 + Math.sin(time * 2 + k) * 0.03);
+    const A = ch.arms[k]; if (!A.init) { A.tgt.copy(T); A.init = true; } A.tgt.lerp(T, kq); ik(A, S, A.tgt, poleV, 0.24, 0.24);
     let F, knee = zA.clone().addScaledVector(up, 0.2);
-    if (s.state === 'grab' && s.grabKind !== 'pole') F = s.grabPt.clone().addScaledVector(s.grabN, 0.06).addScaledVector(xA, side * 0.12).addScaledVector(up, -0.32 + (climbing ? Math.max(0, Math.cos(ph + Math.PI)) * 0.08 : 0));
-    else if (s.state === 'ground') { F = ground.clone().addScaledVector(xA, side * 0.16).addScaledVector(zA, walking ? Math.sin(ph) * 0.17 : 0.03).addScaledVector(up, walking ? Math.max(0, Math.cos(ph)) * 0.1 : 0); if (holding) F.addScaledVector(rope.dir, -0.12); }
-    else F = H.clone().addScaledVector(up, -0.26).addScaledVector(zA, Math.sin(time * (s.state === 'air' ? 12 : 3) + k * Math.PI) * 0.12).addScaledVector(xA, side * 0.06);
-    const Lg = ch.legs[k]; if (!Lg.init) { Lg.tgt.copy(F); Lg.init = true; } Lg.tgt.lerp(F, kq); solveLimb(Lg, H, Lg.tgt, knee); Lg.e.quaternion.copy(ch.quat);
+    if (s.state === 'grab' && s.grabKind !== 'pole') F = s.grabPt.clone().addScaledVector(s.grabN, 0.07).addScaledVector(xA, side * 0.12).addScaledVector(up, -0.34 + (climbing ? Math.max(0, Math.cos(ph + Math.PI)) * 0.08 : 0));
+    else if (s.state === 'ground') { F = ground.clone().addScaledVector(xA, side * 0.16).addScaledVector(zA, walking ? Math.sin(ph) * 0.16 : 0.03).addScaledVector(up, walking ? Math.max(0, Math.cos(ph)) * 0.1 : 0); if (holding) F.addScaledVector(rope.dir, -0.12); }
+    else F = H.clone().addScaledVector(up, -0.24).addScaledVector(zA, Math.sin(time * (s.state === 'air' ? 8 : 3) + k * Math.PI) * 0.1).addScaledVector(xA, side * 0.06);
+    const Lg = ch.legs[k]; if (!Lg.init) { Lg.tgt.copy(F); Lg.init = true; } Lg.tgt.lerp(F, kq); ik(Lg, H, Lg.tgt, knee, 0.15, 0.15);
   }
-  // hair
-  const g = up.clone().multiplyScalar(-G), h2 = Math.min(dt, 1 / 30) ** 2, headC = toWorld(V(hl.x, 0.3, hl.z)), bodyC = p;
+  // mesh the jelly ~30 times a second
+  ch.meshT -= dt;
+  if (ch.meshT <= 0 || !ch.init) {
+    ch.meshT = 1 / 32;
+    const L = v => toLocal(v.clone().sub(p));
+    const prims = [
+      { s: bellyC, r: 0.36, sy: 0.92, k: 0.2 },
+      { s: headC, r: 0.32, k: 0.22 },
+    ];
+    for (const A of ch.arms) { const s0 = L(A.S), e = L(A.E), h = L(A.H); prims.push({ a: s0.clone().lerp(V(bellyC.x, 0.02, bellyC.z), 0.35), b: e, r: 0.085, k: 0.14 }, { a: e, b: h, r: 0.075, k: 0.06 }, { s: h, r: 0.1, k: 0.06 }); }
+    for (const G2 of ch.legs) { const s0 = L(G2.S), e = L(G2.E), h = L(G2.H); prims.push({ a: s0, b: e, r: 0.1, k: 0.14 }, { a: e, b: h, r: 0.09, k: 0.06 }, { s: h.clone().add(V(0, 0.02, 0.03)), r: 0.11, sy: 0.7, k: 0.06 }); }
+    meshJelly(ch.J, prims);
+  }
+  // hair: soft, heavy strands that settle toward this climber's down and ride along with the head
+  const g = up.clone().multiplyScalar(-G * 0.7), h2 = Math.min(dt, 1 / 30) ** 2, hw = toWorld(headC), bodyC = toWorld(bellyC);
   let n = 0;
   ch.strands.forEach((st, si) => {
-    const root = toWorld(st.anchor.clone().add(V(hl.x, 0, hl.z)));
-    if (!st.p.length || !ch.init) { st.p = []; st.q = []; for (let i = 0; i < HAIR_S; i++) { const v = root.clone().addScaledVector(up, -i * HAIR_SEG); st.p.push(v); st.q.push(v.clone()); } }
+    const root = toWorld(st.anchor.clone().add(V(headC.x, headC.y - 0.27, headC.z)));
+    if (!st.p.length || !ch.init) { st.p = []; st.q = []; st.root = root.clone(); for (let i = 0; i < HAIR_S; i++) { const v = root.clone().addScaledVector(up, -i * HAIR_SEG); st.p.push(v); st.q.push(v.clone()); } }
+    const carry = root.clone().sub(st.root); st.root.copy(root);
     st.p[0].copy(root);
-    for (let i = 1; i < HAIR_S; i++) { const v = st.p[i].clone().sub(st.q[i]).multiplyScalar(0.94); st.q[i].copy(st.p[i]); st.p[i].add(v).addScaledVector(g, h2); }
-    for (let it = 0; it < 3; it++) for (let i = 1; i < HAIR_S; i++) {
-      const a = st.p[i - 1], b = st.p[i], d = b.clone().sub(a), l = d.length() || 1e-6; b.copy(a).addScaledVector(d, HAIR_SEG / l);
-      const dh = b.clone().sub(headC), lh = dh.length(); if (lh < 0.37) b.copy(headC).addScaledVector(dh, 0.37 / (lh || 1));
-      const db = b.clone().sub(bodyC), lb = db.length(); if (lb < 0.43) b.copy(bodyC).addScaledVector(db, 0.43 / (lb || 1));
+    for (let i = 1; i < HAIR_S; i++) { // move with the head, then let it swing a little
+      st.p[i].addScaledVector(carry, 0.85); st.q[i].addScaledVector(carry, 0.85);
+      const v = st.p[i].clone().sub(st.q[i]).multiplyScalar(0.8); st.q[i].copy(st.p[i]); st.p[i].add(v).addScaledVector(g, h2);
     }
-    for (let i = 0; i < HAIR_S; i++) { const r = 0.062 - i * 0.0025; hairM.compose(st.p[i], hairQ, hairS.set(r, r, r)); ch.hairMesh.setMatrixAt(n++, hairM); }
+    for (let it = 0; it < 3; it++) for (let i = 1; i < HAIR_S; i++) {
+      const a = st.p[i - 1], b = st.p[i];
+      if (i > 1) { const straight = a.clone().add(a.clone().sub(st.p[i - 2]).setLength(HAIR_SEG)); b.lerp(straight, 0.12); }
+      const d = b.clone().sub(a), l = d.length() || 1e-6; b.copy(a).addScaledVector(d, HAIR_SEG / l);
+      const dh = b.clone().sub(hw), lh = dh.length(); if (lh < 0.35) b.copy(hw).addScaledVector(dh, 0.35 / (lh || 1));
+      const db = b.clone().sub(bodyC), lb = db.length(); if (lb < 0.4) b.copy(bodyC).addScaledVector(db, 0.4 / (lb || 1));
+    }
+    for (let i = 0; i < HAIR_S; i++) { const r = 0.06 - i * 0.0026; hairM.compose(st.p[i], hairQ, hairS.set(r, r, r)); ch.hairMesh.setMatrixAt(n++, hairM); }
     hairM.compose(st.p[HAIR_S - 1].clone().addScaledVector(up, -0.03), hairQ, hairS.set(0.07, 0.07, 0.07)); ch.tips.setMatrixAt(si, hairM);
   });
   ch.hairMesh.instanceMatrix.needsUpdate = true; ch.tips.instanceMatrix.needsUpdate = true;
-  ch.hairMesh.frustumCulled = false; ch.tips.frustumCulled = false;
   ch.init = true;
 }
 
