@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Roped</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Instrument+Sans:wght@500;600;700&display=swap">
+<style>
+:root { --cream: #f2e8d2; --paper: #fffaf0; --ink: #161412; --soft: #5a5247; --mag: #e3218e; --blue: #1c4fe0; --yel: #ffd21f; --red: #e8202a;
+  --display: "Syne", "Avenir Next", Futura, system-ui, sans-serif; --body: "Instrument Sans", "Helvetica Neue", Arial, system-ui, sans-serif; color-scheme: light; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--cream); color: var(--ink); font-family: var(--body); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+#grain { position: fixed; inset: 0; pointer-events: none; opacity: .2; mix-blend-mode: multiply; background-size: 220px 220px; }
+button { font: inherit; color: var(--ink); cursor: pointer; }
+.btn { background: var(--paper); border: 3px solid var(--ink); border-radius: 999px; padding: 10px 20px; font-size: 17px; font-weight: 700; box-shadow: 4px 4px 0 var(--ink); }
+.btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+.btn.hot { background: var(--yel); }
+.btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+/* menus */
+.screen { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+.panel { background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 7px 7px 0 var(--ink); padding: 20px 24px; width: min(460px, 100%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+.panel h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(42px, 9vw, 64px); line-height: .9; letter-spacing: -.02em; }
+.panel h1 .o { color: var(--mag); }
+.panel h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 26px; }
+.panel p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--soft); max-width: 58ch; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.code { font-family: var(--display); font-weight: 800; font-size: 46px; letter-spacing: .08em; }
+input.codein { font: 700 24px var(--body); width: 7ch; padding: 8px 12px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; text-align: center; letter-spacing: .12em; }
+.status { font-weight: 700; font-size: 15px; min-height: 1.3em; color: var(--ink); }
+.tips { font-size: 13.5px; line-height: 1.45; color: var(--soft); margin: 0; padding-left: 18px; }
+/* hud */
+#hud { position: fixed; z-index: 10; inset: 0; touch-action: none; }
+.hudtop { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.lives { display: flex; gap: 6px; background: var(--paper); border: 2.5px solid var(--ink); border-radius: 999px; padding: 6px 10px; box-shadow: 3px 3px 0 var(--ink); }
+.lives i { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--ink); background: var(--mag); }
+.lives i.gone { background: transparent; }
+.prog { flex: 1; max-width: 340px; height: 10px; border: 2.5px solid var(--ink); border-radius: 999px; background: var(--paper); overflow: hidden; position: relative; }
+.prog b { position: absolute; top: 0; bottom: 0; width: 10px; border-radius: 50%; }
+.prog b.a { background: var(--mag); } .prog b.b { background: var(--blue); }
+.hudbtns { display: flex; gap: 8px; pointer-events: auto; }
+.hb { background: var(--paper); border: 2.5px solid var(--ink); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; box-shadow: 3px 3px 0 var(--ink); }
+.hb.off { background: var(--ink); color: var(--paper); }
+#toast { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 58px); transform: translateX(-50%); background: var(--ink); color: var(--paper); font-weight: 700; font-size: 15px; padding: 8px 16px; border-radius: 999px; white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis; transition: opacity .3s; }
+#toast.hide { opacity: 0; }
+/* touch controls */
+#joy { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border: 3px solid var(--ink); border-radius: 50%; background: rgba(255, 250, 240, .35); display: none; }
+#joy b { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: var(--paper); border: 3px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+.pads { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); display: grid; grid-template-columns: auto auto; gap: 10px; align-items: end; pointer-events: auto; }
+.pad { border: 3px solid var(--ink); border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-family: var(--display); box-shadow: 3px 3px 0 var(--ink); touch-action: none; }
+.pad.on { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); filter: brightness(.92); }
+#bJump { width: 82px; height: 82px; background: var(--yel); font-size: 15px; }
+#bGrab { width: 96px; height: 96px; background: var(--mag); color: #fff; font-size: 17px; }
+.reel { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: calc(env(safe-area-inset-bottom, 0px) + 128px); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
+.reel .pad { width: 50px; height: 50px; background: var(--paper); font-size: 12px; font-family: var(--body); line-height: 1.05; text-align: center; }
+#bSwap { position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); pointer-events: auto; }
+#rotate { position: fixed; z-index: 30; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 100px); transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; display: none; }
+@media (orientation: portrait) and (pointer: coarse) { #rotate.want { display: block; } }
+@media (max-height: 430px) { .panel { padding: 14px 18px; gap: 8px; } .panel h1 { font-size: 40px; } #bGrab { width: 84px; height: 84px; } #bJump { width: 72px; height: 72px; } .reel { bottom: calc(env(safe-area-inset-bottom, 0px) + 112px); } }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="grain"></div>
+
+<div class="screen" id="sTitle">
+  <div class="panel">
+    <h1>R<span class="o">o</span>ped</h1>
+    <p>Two climbers, two gravities, one rope. Climb through the painting together. If your partner falls, only a grip on a fence or a line will hold them.</p>
+    <div class="row"><button class="btn hot" id="hostBtn">Host a game</button><button class="btn" id="practiceBtn">Practice alone</button></div>
+    <div class="row"><input class="codein" id="codeIn" inputmode="numeric" maxlength="4" placeholder="1234" aria-label="Game code"><button class="btn" id="joinBtn">Join</button></div>
+    <div class="status" id="lobStatus"></div>
+    <ul class="tips">
+      <li>Left thumb moves. Drag on the right to look around.</li>
+      <li>Hold <b>Grab</b> near a chain fence or a striped line to hang on and climb.</li>
+      <li>Blocks give footing. Glossy shapes are slippery. Fences can only be climbed.</li>
+      <li>Reel in only takes up slack. Pay out gives your partner more rope.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="screen" id="sLobby" hidden>
+  <div class="panel">
+    <h2 id="lobTitle">Your game</h2>
+    <div class="row"><span>Code</span><span class="code" id="lobCode">0000</span></div>
+    <p id="lobNote">Your partner types this code and taps Join. You climb with the down-gravity, they climb with the sideways one.</p>
+    <div class="status" id="lobStatus2"></div>
+    <div class="row"><button class="btn hot" id="startBtn" disabled>Start climbing</button><button class="btn" id="micBtn">Mic on</button><button class="btn" id="leaveBtn">Leave</button></div>
+  </div>
+</div>
+
+<div class="screen" id="sEnd" hidden>
+  <div class="panel">
+    <h2 id="endTitle">You made it</h2>
+    <p id="endText"></p>
+    <div class="row"><button class="btn hot" id="againBtn">Climb a new painting</button><button class="btn" id="menuBtn">Menu</button></div>
+  </div>
+</div>
+
+<div id="hud" hidden>
+  <div class="hudtop">
+    <div class="lives" id="lives" aria-label="Lives"></div>
+    <div class="prog" aria-hidden="true"><b class="a" id="progA"></b><b class="b" id="progB"></b></div>
+    <div class="hudbtns"><button class="hb" id="hudMic" hidden>Mic</button><button class="hb" id="hudExit">Menu</button></div>
+  </div>
+  <div id="toast" class="hide"></div>
+  <div id="joy"><b></b></div>
+  <div class="reel"><div class="pad" id="bIn">Reel<br>in</div><div class="pad" id="bOut">Pay<br>out</div></div>
+  <div class="pads"><div class="pad" id="bJump">Jump</div><div class="pad" id="bGrab">Grab</div></div>
+  <button class="hb" id="bSwap" hidden>Swap to B</button>
+</div>
+<div id="rotate">Turn your phone sideways</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+/* ================= Roped: level generation + physics (no rendering) ================= */
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+function mulberry(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const G = 12, R = 0.4;
+const ROLES = { A: { up: V(0, 1, 0), hue: '#e3218e' }, B: { up: V(1, 0, 0), hue: '#1c4fe0' } };
+const PAL = ['#e8202a', '#ffd21f', '#1c4fe0', '#e3218e', '#ff7a00', '#00a651', '#6b2bd9', '#00b4e6', '#a8e000', '#ff8fc7'];
+
+// the route: a wandering spine; A travels on top faces near (cx, cy), B on +X faces near (cx + 2.2, cy - 1.5)
+const LANE_B = V(2.2, -1.5, 0);
+function spine(z) { return V(1.6 * Math.sin(z * 0.065), 1.3 * Math.sin(z * 0.047 + 1), z); }
+function laneA(z) { return spine(z); }
+function laneB(z) { return spine(z).add(LANE_B); }
+
+/* ---------- colliders ---------- */
+function mkBox(c, q, h, mat, color, extra) { const o = { kind: 'box', c, q, inv: q.clone().invert(), h, mat, color, br: h.length() }; return Object.assign(o, extra || {}); }
+function mkCyl(c, q, r, hh, mat, color) { return { kind: 'cyl', c, q, inv: q.clone().invert(), r, hh, mat, color, br: Math.hypot(r, hh) }; }
+function mkSphere(c, r, mat, color) { return { kind: 'sphere', c, r, mat, color, br: r }; }
+function mkPole(a, b, r, color) { const c = a.clone().add(b).multiplyScalar(0.5); return { kind: 'pole', a, b, r, mat: 'pole', color, c, br: a.distanceTo(b) / 2 + r }; }
+const _t1 = V(), _t2 = V(), _t3 = V();
+// nearest point on the collider's surface to p, the outward normal there, and whether p is inside
+function nearest(col, p, out) {
+  if (col.kind === 'sphere') { const d = _t1.copy(p).sub(col.c), l = d.length() || 1e-6; out.n.copy(d).divideScalar(l); out.q.copy(col.c).addScaledVector(out.n, col.r); out.inside = l < col.r; return out; }
+  if (col.kind === 'pole') {
+    const ab = _t1.copy(col.b).sub(col.a), t = clamp(_t2.copy(p).sub(col.a).dot(ab) / ab.lengthSq(), 0, 1);
+    const cp = _t2.copy(col.a).addScaledVector(ab, t), d = _t3.copy(p).sub(cp), l = d.length() || 1e-6;
+    out.n.copy(d).divideScalar(l); out.q.copy(cp).addScaledVector(out.n, col.r); out.inside = l < col.r; out.t = t; return out;
+  }
+  const L = _t1.copy(p).sub(col.c).applyQuaternion(col.inv);
+  if (col.kind === 'box') {
+    const h = col.h, inside = Math.abs(L.x) < h.x && Math.abs(L.y) < h.y && Math.abs(L.z) < h.z;
+    const Q = _t2.set(clamp(L.x, -h.x, h.x), clamp(L.y, -h.y, h.y), clamp(L.z, -h.z, h.z)), N = _t3.set(0, 0, 0);
+    if (inside) { const dx = h.x - Math.abs(L.x), dy = h.y - Math.abs(L.y), dz = h.z - Math.abs(L.z);
+      if (dx <= dy && dx <= dz) { Q.x = Math.sign(L.x || 1) * h.x; N.x = Math.sign(L.x || 1); } else if (dy <= dz) { Q.y = Math.sign(L.y || 1) * h.y; N.y = Math.sign(L.y || 1); } else { Q.z = Math.sign(L.z || 1) * h.z; N.z = Math.sign(L.z || 1); } }
+    else { N.copy(L).sub(Q).normalize(); }
+    out.q.copy(Q).applyQuaternion(col.q).add(col.c); out.n.copy(N).applyQuaternion(col.q); out.inside = inside; return out;
+  }
+  // cylinder, axis = local Y
+  const rad = Math.hypot(L.x, L.z), inside = rad < col.r && Math.abs(L.y) < col.hh;
+  const Q = _t2.copy(L), N = _t3.set(0, 0, 0);
+  if (rad > col.r) { Q.x *= col.r / rad; Q.z *= col.r / rad; }
+  Q.y = clamp(L.y, -col.hh, col.hh);
+  if (inside) { if (col.r - rad < col.hh - Math.abs(L.y)) { const k = col.r / (rad || 1e-6); Q.x = L.x * k; Q.z = L.z * k; N.set(L.x, 0, L.z).normalize(); } else { Q.y = Math.sign(L.y || 1) * col.hh; N.set(0, Math.sign(L.y || 1), 0); } }
+  else N.copy(L).sub(Q).normalize();
+  out.q.copy(Q).applyQuaternion(col.q).add(col.c); out.n.copy(N).applyQuaternion(col.q); out.inside = inside; return out;
+}
+const NR = { q: V(), n: V(), inside: false, t: 0 };
+
+/* ---------- procedural level: a floating Kandinsky composition along the route ---------- */
+function quatFromUp(up, spin) { const q = new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), up.clone().normalize()); if (spin) q.multiply(new THREE.Quaternion().setFromAxisAngle(V(0, 1, 0), spin)); return q; }
+function tilt(rng, up, deg) { const a = (rng() - 0.5) * 2 * deg * Math.PI / 180, b = (rng() - 0.5) * 2 * deg * Math.PI / 180; return up.clone().applyEuler(new THREE.Euler(a, 0, b)).normalize(); }
+function genLevel(seed) {
+  const rng = mulberry(seed), cols = [], decor = [], cps = [];
+  const pick = () => PAL[Math.floor(rng() * PAL.length)];
+  const L = { cols, decor, cps, seed };
+  const shared = (z0, len, color) => { // one block: its top is A's floor, its right face is B's floor
+    const zc = z0 + len / 2, s = spine(zc);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (rng() - 0.5) * 0.12, (rng() - 0.5) * 0.1));
+    cols.push(mkBox(V(s.x + 0.35, s.y - 1.55, zc), q, V(1.45, 1.15, len / 2), 'block', color || pick(), { tex: Math.floor(rng() * 6) }));
+  };
+  const sepA = (zc) => { const s = laneA(zc), r = 0.9 + rng() * 0.6; const up = tilt(rng, V(0, 1, 0), 16);
+    if (rng() < 0.55) cols.push(mkCyl(V(s.x + (rng() - 0.5) * 0.8, s.y - 0.4 - 0.2, zc), quatFromUp(up), r, 0.2, 'block', pick()));
+    else cols.push(mkBox(V(s.x + (rng() - 0.5) * 0.6, s.y - 0.4 - 0.18, zc), quatFromUp(up, rng() * 3), V(r * 0.9, 0.18, r * 0.75), 'block', pick(), { tex: Math.floor(rng() * 6) })); };
+  const sepB = (zc) => { const s = laneB(zc), r = 0.85 + rng() * 0.55; const up = tilt(rng, V(1, 0, 0), 16);
+    if (rng() < 0.55) cols.push(mkCyl(V(s.x - 0.4 - 0.2, s.y + (rng() - 0.5) * 0.8, zc), quatFromUp(up), r, 0.2, 'block', pick()));
+    else cols.push(mkBox(V(s.x - 0.4 - 0.18, s.y + (rng() - 0.5) * 0.6, zc), quatFromUp(up, rng() * 3), V(r * 0.75, 0.18, r * 0.9), 'block', pick(), { tex: Math.floor(rng() * 6) })); };
+  const ramp = (z0, len) => { // a 45° slab both can stand on
+    const zc = z0 + len / 2, n = V(1, 1, 0).normalize(), a = laneA(zc), b = laneB(zc);
+    const d = Math.min(n.dot(a), n.dot(b)) - R, m = a.clone().add(b).multiplyScalar(0.5);
+    const c = m.clone().addScaledVector(n, -(n.dot(m) - d)).addScaledVector(n, -0.16);
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(1, -1, 0).normalize(), n, V(0, 0, 1)));
+    cols.push(mkBox(c, q, V(2.6, 0.16, len / 2), 'block', pick(), { tex: Math.floor(rng() * 6) }));
+  };
+  const gridSheet = (z0, len) => { // a tilted chain-link sheet across both lanes: climb it
+    const zc = z0 + len / 2, a = laneA(zc), b = laneB(zc), along = b.clone().sub(a).normalize(), n = V(-along.y, along.x, 0).normalize();
+    const flip = rng() < 0.5 ? 1 : -1, c = a.clone().add(b).multiplyScalar(0.5).addScaledVector(n, flip * 0.45);
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n, V(0, 0, 1)));
+    cols.push(mkBox(c, q, V(2.7, 0.03, len / 2), 'grid', pick()));
+  };
+  const glossGap = (z0, len) => {
+    const zc = z0 + len / 2, a = laneA(zc), b = laneB(zc);
+    cols.push(mkSphere(V(a.x - 0.2, a.y - 1.7, zc), 1.35, 'gloss', pick()));
+    cols.push(mkSphere(V(b.x - 1.9, b.y + 0.3, zc + 0.6), 1.1, 'gloss', pick()));
+    cols.push(mkPole(V(a.x + 0.9, a.y + 1.3, z0 - 0.6), V(a.x + 1.2, a.y + 0.9, z0 + len + 0.6), 0.09, pick()));
+  };
+  const poles = (z0, len) => {
+    const a = laneA(z0), a2 = laneA(z0 + len), b = laneB(z0), b2 = laneB(z0 + len);
+    cols.push(mkPole(V(a.x - 0.3, a.y + 0.55, z0 - 0.5), V(a2.x + 0.4, a2.y + 0.35, z0 + len + 0.5), 0.09, pick()));
+    cols.push(mkPole(V(b.x + 0.55, b.y + 0.3, z0 - 0.5), V(b2.x + 0.35, b2.y - 0.4, z0 + len + 0.5), 0.09, pick()));
+  };
+  // build
+  let z = -4; shared(z, 8, '#ffd21f'); cps.push({ z: 0 }); z += 8;
+  const goalZ = 104; let nextCp = 26;
+  while (z < goalZ - 6) {
+    const k = clamp(z / goalZ, 0, 1), gap = 0.5 + rng() * (0.6 + k * 0.9);
+    z += gap;
+    if (z >= nextCp) { shared(z, 4); cps.push({ z: z + 2 }); z += 4; nextCp += 26; continue; }
+    const r = rng();
+    if (r < 0.24) { const len = 2 + rng() * 2.5; shared(z, len); z += len; }
+    else if (r < 0.5) { const len = 2.2 + rng() * 1.2; sepA(z + len / 2 + (rng() - 0.5) * 0.6); sepB(z + len / 2 + (rng() - 0.5) * 0.6); if (rng() < 0.3) { sepA(z + len + 1.2); z += 1.2; } z += len; }
+    else if (r < 0.62) { const len = 2.5 + rng() * 2; ramp(z, len); z += len; }
+    else if (r < 0.76) { const len = 3.5 + rng() * 2; gridSheet(z, len); z += len; }
+    else if (r < 0.88) { const len = 3.4; glossGap(z, len); z += len; }
+    else { const len = 3.5 + rng() * 1.5; poles(z, len); z += len; }
+  }
+  z += 0.8; shared(z, 7, '#ffd21f'); L.goalZ = z + 3.5;
+  // repair pass: wherever a lane has nothing to stand on or grab for more than a jump, drop in a stepping stone
+  const support = (role, z) => {
+    const up = ROLES[role].up, p0 = (role === 'A' ? laneA(z) : laneB(z)).addScaledVector(up, 0.6), near = cols.filter(c => Math.abs(c.c.z - z) < c.br + 1);
+    const out = { q: V(), n: V() };
+    for (let d = 0; d < 2.8; d += 0.15) { const p = p0.clone().addScaledVector(up, -d);
+      for (const c of near) { nearest(c, p, out); const dist = p.distanceTo(out.q);
+        if ((c.mat === 'block' && dist < 0.45 && out.n.dot(up) > 0.6) || ((c.mat === 'grid' || c.mat === 'pole') && dist < 1.0)) return true; } }
+    return false;
+  };
+  for (const role of ['A', 'B']) {
+    let start = null;
+    for (let zz = 0; zz < L.goalZ; zz += 0.25) {
+      if (support(role, zz)) { if (start !== null && zz - start > 2.4) { const n = Math.ceil((zz - start) / 2.2); for (let i = 1; i < n; i++) { const zc = start + (zz - start) * i / n; role === 'A' ? sepA(zc) : sepB(zc); } } start = null; }
+      else if (start === null) start = zz;
+    }
+  }
+  // Kandinsky decor that floats around the route (not solid)
+  for (let dz = -10; dz < L.goalZ + 14; dz += 0.9) {
+    const s = spine(dz), ang = rng() * Math.PI * 2, dist = 3.6 + rng() * 10;
+    const p = V(s.x + 1.1 + Math.cos(ang) * dist, s.y - 0.7 + Math.sin(ang) * dist, dz + rng());
+    const t = rng();
+    decor.push({ kind: t < 0.3 ? 'rings' : t < 0.48 ? 'tri' : t < 0.62 ? 'line' : t < 0.76 ? 'checker' : t < 0.9 ? 'disc' : 'arc', p, rot: [rng() * 6, rng() * 6, rng() * 6], s: 0.5 + rng() * 1.8, color: pick(), color2: pick() });
+  }
+  return L;
+}
+
+/* ---------- rope: the taut route between two points, wrapped around solids ---------- */
+const NB = 14;
+function makeBand(a, b) { const pts = []; for (let i = 0; i < NB; i++) pts.push(a.clone().lerp(b, i / (NB - 1))); return pts; }
+function pushOut(p, cols, r) {
+  for (const c of cols) {
+    if (c.mat === 'grid') continue;
+    if (Math.abs(p.z - c.c.z) > c.br + r || p.distanceToSquared(c.c) > (c.br + r) * (c.br + r)) continue;
+    nearest(c, p, NR);
+    if (NR.inside) p.copy(NR.q).addScaledVector(NR.n, r);
+    else if (p.distanceToSquared(NR.q) < r * r) p.copy(NR.q).addScaledVector(NR.n, r);
+  }
+}
+function stepBand(band, a, b, cols) {
+  band[0].copy(a); band[NB - 1].copy(b);
+  const m = V();
+  for (let it = 0; it < 4; it++) for (let i = 1; i < NB - 1; i++) {
+    m.copy(band[i - 1]).add(band[i + 1]).multiplyScalar(0.5);
+    band[i].lerp(m, 0.6); pushOut(band[i], cols, 0.07);
+  }
+  let l = 0; for (let i = 0; i < NB - 1; i++) l += band[i].distanceTo(band[i + 1]);
+  return l;
+}
+
+/* ---------- a climber ---------- */
+function makeBody(role, p) {
+  return { role, up: ROLES[role].up.clone(), p: p.clone(), v: V(), state: 'ground', groundN: ROLES[role].up.clone(), airT: 0, yankT: 0, grabCool: 0,
+    grab: null, grabN: V(), grabPt: V(), halfL: 2.2, yaw: 0, pitch: 0.2, mouth: 0, input: { x: 0, y: 0, jump: false, grab: false, rin: false, rout: false }, jumpWas: false, fallT: 0, speed: 0 };
+}
+function camBasis(b) { // forward and right in the climber's floor plane, from its look yaw
+  const f0 = V(0, 0, 1), side = V().crossVectors(b.up, f0);
+  const f = f0.clone().multiplyScalar(Math.cos(b.yaw)).addScaledVector(side, Math.sin(b.yaw)).normalize();
+  const r = V().crossVectors(f, b.up).normalize();
+  return { f, r };
+}
+function nearCols(cols, p, pad) { const out = []; for (const c of cols) if (Math.abs(p.z - c.c.z) < c.br + pad && p.distanceToSquared(c.c) < (c.br + pad) * (c.br + pad)) out.push(c); return out; }
+const WALK = 3.6, JUMP = 6.0, CLIMB = 2.1;
+// one physics step for a locally controlled climber
+function stepBody(b, dt, cols, events) {
+  const I = b.input, up = b.up, near = nearCols(cols, b.p, 1.4);
+  const jumpPress = I.jump && !b.jumpWas; b.jumpWas = I.jump;
+  b.grabCool -= dt; b.yankT -= dt;
+  const { f, r } = camBasis(b);
+  const wish = V().addScaledVector(f, I.y).addScaledVector(r, I.x); if (wish.lengthSq() > 1) wish.normalize();
+  if (b.state === 'grab') {
+    if (!I.grab) { b.state = 'air'; b.grab = null; b.v.set(0, 0, 0); b.grabCool = 0.25; }
+    else if (jumpPress) { b.v.copy(b.grabN).multiplyScalar(3.6).addScaledVector(up, 4.5).addScaledVector(wish, 2.5); b.state = 'air'; b.grab = null; b.grabCool = 0.4; events.push('jump'); }
+    else {
+      const c = b.grab; let move = wish.clone();
+      if (c.kind === 'pole') { const ax = c.b.clone().sub(c.a).normalize(); move = ax.multiplyScalar(move.dot(ax)); }
+      else move.addScaledVector(b.grabN, -move.dot(b.grabN));
+      // climbing is a little easier along your own "up"
+      b.p.addScaledVector(move, CLIMB * dt);
+      nearest(c, b.p, NR); b.grabN.copy(NR.inside ? NR.n : NR.n); b.p.copy(NR.q).addScaledVector(b.grabN, R + 0.04); b.grabPt.copy(NR.q);
+      b.v.set(0, 0, 0); b.speed = move.length() * CLIMB;
+    }
+  }
+  if (b.state !== 'grab') {
+    b.v.addScaledVector(up, -G * dt);
+    const vUp = b.v.dot(up), vPl = b.v.clone().addScaledVector(up, -vUp);
+    if (b.state === 'ground') {
+      const target = wish.clone().multiplyScalar(WALK); target.addScaledVector(b.groundN, -target.dot(b.groundN));
+      vPl.lerp(target.clone().addScaledVector(up, -target.dot(up)), 1 - Math.exp(-14 * dt));
+      if (jumpPress) { b.v.copy(vPl).addScaledVector(up, JUMP); b.state = 'air'; b.airT = 0; events.push('jump'); }
+      else b.v.copy(vPl).addScaledVector(up, vUp);
+    } else {
+      const target = wish.clone().multiplyScalar(WALK);
+      vPl.add(target.sub(vPl).multiplyScalar(Math.min(1, 2.2 * dt)));
+      b.v.copy(vPl).addScaledVector(up, vUp);
+    }
+    b.p.addScaledVector(b.v, dt);
+    // collide
+    let grounded = false, gN = V();
+    for (let pass = 0; pass < 2; pass++) for (const c of near) {
+      if (c.kind === 'pole') continue; // poles are thin: you grab them, you don't stand on them
+      nearest(c, b.p, NR);
+      const d2 = b.p.distanceToSquared(NR.q);
+      if (!NR.inside && d2 >= R * R) continue;
+      const n = NR.n.clone(); b.p.copy(NR.q).addScaledVector(n, R);
+      const vn = b.v.dot(n); if (vn < 0) b.v.addScaledVector(n, -vn);
+      if (c.mat === 'block' && n.dot(up) > 0.6) { grounded = true; gN.add(n); }
+      else if (c.mat === 'grid') b.v.multiplyScalar(1 - Math.min(1, 3 * dt));
+    }
+    if (grounded && b.yankT <= 0) { if (b.state === 'air' && b.airT > 0.25) events.push('land'); b.state = 'ground'; b.groundN.copy(gN.normalize()); b.airT = 0; }
+    else if (b.state === 'ground') { b.state = 'air'; b.airT = 0; }
+    if (b.state === 'air') b.airT += dt;
+    b.speed = b.v.clone().addScaledVector(up, -b.v.dot(up)).length();
+    // grab: hold the button near a fence or a line
+    if (I.grab && b.grabCool <= 0) {
+      let best = null, bd = R + 0.42;
+      for (const c of near) if (c.mat === 'grid' || c.mat === 'pole') { nearest(c, b.p, NR); const d = b.p.distanceTo(NR.q); if (d < bd) { bd = d; best = c; } }
+      if (best) { nearest(best, b.p, NR); b.grab = best; b.grabN.copy(NR.n); b.grabPt.copy(NR.q); b.p.copy(NR.q).addScaledVector(NR.n, R + 0.04); b.v.set(0, 0, 0); b.state = 'grab'; b.airT = 0; events.push('grab'); }
+    }
+  }
+  // reel your half of the rope
+  if (I.rout) b.halfL = Math.min(3.2, b.halfL + 1.5 * dt);
+  if (I.rin && !b.taut) b.halfL = Math.max(0.7, b.halfL - 1.5 * dt);
+}
+// the rope: pull a climber back along its first rope link when the route is longer than the rope
+function ropeStep(b, partner, L, len, band, dt, share, events) {
+  const excess = len - L;
+  b.taut = excess > -0.05;
+  if (excess <= 0.04) return; // a little stretch soaks up network lag
+  const dir = (b.isFirst ? band[1] : band[NB - 2]).clone().sub(b.p).normalize();
+  const partnerHanging = partner.state === 'air' && partner.airT > 0.3;
+  if (b.state === 'grab') return; // a grip holds whatever happens
+  if (b.state === 'ground' && partnerHanging && b.yankT <= 0) { b.state = 'air'; b.yankT = 0.7; b.v.addScaledVector(dir, 2.5); events.push('yank'); }
+  const k = Math.min(1, (excess - 0.04) * share);
+  b.p.addScaledVector(dir, k);
+  const away = -b.v.dot(dir); if (away > 0) b.v.addScaledVector(dir, away);
+}
+if (false) module.exports = { genLevel, makeBody, stepBody, ropeStep, stepBand, makeBand, laneA, laneB, spine, nearest, NB, R, G };
+
+/* ================= Roped: the painting (materials, level meshes, climbers, hair, rope) ================= */
+const rnd = (a, b) => a + Math.random() * (b - a);
+let srandS = 11; const srand = () => (srandS = (srandS * 16807) % 2147483647) / 2147483647;
+function noiseCanvas(size, lo, hi, fibers) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d');
+  const img = x.createImageData(size, size);
+  for (let i = 0; i < img.data.length; i += 4) { const v = lo + Math.random() * (hi - lo); img.data[i] = v; img.data[i + 1] = v * 0.99; img.data[i + 2] = v * 0.96; img.data[i + 3] = 255; }
+  x.putImageData(img, 0, 0);
+  if (fibers) { x.globalAlpha = 0.07; x.strokeStyle = '#000'; for (let i = 0; i < fibers; i++) { x.beginPath(); const px = Math.random() * size, py = Math.random() * size; x.moveTo(px, py); x.quadraticCurveTo(px + rnd(-20, 20), py + rnd(-20, 20), px + rnd(-30, 30), py + rnd(-30, 30)); x.stroke(); } }
+  return c;
+}
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+const scene = new THREE.Scene();
+const CREAM = new THREE.Color('#f2e8d2');
+scene.background = CREAM; scene.fog = new THREE.Fog(CREAM, 14, 46);
+const camera = new THREE.PerspectiveCamera(74, 1, 0.08, 160);
+scene.add(new THREE.HemisphereLight(0xfff6e4, 0xc9b896, 0.78));
+const sun = new THREE.DirectionalLight(0xffffff, 0.5); sun.position.set(-5, 9, -6); scene.add(sun);
+const gradTex = (() => { const d = new Uint8Array([125, 125, 125, 255, 205, 205, 205, 255, 255, 255, 255, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RGBAFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+const grainTex = new THREE.CanvasTexture(noiseCanvas(256, 205, 255, 120)); grainTex.wrapS = grainTex.wrapT = THREE.RepeatWrapping;
+const INK = new THREE.MeshBasicMaterial({ color: 0x161412, side: THREE.BackSide });
+const INK_F = new THREE.MeshBasicMaterial({ color: 0x161412 });
+const WHITE = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: gradTex });
+const toon = (opts) => new THREE.MeshToonMaterial(Object.assign({ gradientMap: gradTex }, opts));
+
+// painted textures: flat colour with concentric circles, ink lines, triangles and checker patches
+const texCache = {};
+function kTex(color, key) {
+  const id = color + key; if (texCache[id]) return texCache[id];
+  const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+  x.fillStyle = color; x.fillRect(0, 0, S, S); srandS = 7 + key * 131 + color.charCodeAt(2);
+  const pick = () => PAL[Math.floor(srand() * PAL.length)];
+  for (let m = 0; m < 4 + key % 3; m++) {
+    const t = srand(), cx = srand() * S, cy = srand() * S;
+    if (t < 0.32) { let r = 40 + srand() * 100; while (r > 8) { x.fillStyle = pick(); x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); r -= 12 + srand() * 18; } }
+    else if (t < 0.56) { x.strokeStyle = '#161412'; x.lineWidth = 3 + srand() * 7; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + (srand() - .5) * 600, cy + (srand() - .5) * 600); x.stroke(); }
+    else if (t < 0.76) { x.fillStyle = pick(); x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + 60 + srand() * 90, cy + 20 - srand() * 120); x.lineTo(cx + srand() * 50, cy + 70 + srand() * 60); x.closePath(); x.fill(); }
+    else { const s = 14 + srand() * 14; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#161412' : pick(); x.fillRect(cx + i * s, cy + j * s, s, s); } }
+  }
+  x.globalCompositeOperation = 'multiply'; x.drawImage(noiseCanvas(256, 200, 255, 40), 0, 0, S, S);
+  const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 4;
+  return (texCache[id] = tex);
+}
+let linkTex = null;
+function chainLink() {
+  if (linkTex) return linkTex;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  x.strokeStyle = '#161412'; x.lineWidth = 8; x.lineCap = 'round';
+  for (let k = -1; k <= 1; k++) { x.beginPath(); x.moveTo(k * 128, 0); x.lineTo(k * 128 + 128, 128); x.stroke(); x.beginPath(); x.moveTo(k * 128 + 128, 0); x.lineTo(k * 128, 128); x.stroke(); }
+  linkTex = new THREE.CanvasTexture(c); linkTex.wrapS = linkTex.wrapT = THREE.RepeatWrapping; linkTex.anisotropy = 4; return linkTex;
+}
+function stripes(color) {
+  const c = document.createElement('canvas'); c.width = 32; c.height = 256; const x = c.getContext('2d');
+  for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#161412' : color; x.fillRect(0, i * 32, 32, 32); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+
+/* ---------- level meshes ---------- */
+const levelGroup = new THREE.Group(); scene.add(levelGroup);
+const cpMarks = [];
+function colMesh(c) {
+  let m;
+  if (c.kind === 'box' && c.mat === 'grid') {
+    const g = new THREE.Group(); const w = c.h.x * 2, d = c.h.z * 2;
+    const t = chainLink().clone(); t.needsUpdate = true; t.repeat.set(w / 0.34, d / 0.34);
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.45, side: THREE.DoubleSide }));
+    pl.rotation.x = -Math.PI / 2; g.add(pl);
+    const fm = toon({ color: c.color });
+    const bar = (len, x, z, alongX) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, len, 10), fm); b.position.set(x, 0, z); b.rotation.set(alongX ? 0 : Math.PI / 2, 0, alongX ? Math.PI / 2 : 0); b.add(new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, len + 0.03, 10), INK)); g.add(b); };
+    bar(w + 0.12, 0, d / 2, true); bar(w + 0.12, 0, -d / 2, true); bar(d, w / 2, 0, false); bar(d, -w / 2, 0, false);
+    m = g;
+  } else if (c.kind === 'box') {
+    const geo = new THREE.BoxGeometry(c.h.x * 2, c.h.y * 2, c.h.z * 2);
+    const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
+    for (let k = 0; k < P.count; k++) { const ax = Math.abs(N.getX(k)) > .5 ? 0 : Math.abs(N.getY(k)) > .5 ? 1 : 2; const v = [P.getX(k), P.getY(k), P.getZ(k)]; const [a, b] = ax === 0 ? [2, 1] : ax === 1 ? [0, 2] : [0, 1]; U.setXY(k, v[a] / 3.6, v[b] / 3.6); }
+    m = new THREE.Mesh(geo, c.mat === 'gloss' ? new THREE.MeshPhongMaterial({ color: c.color, shininess: 140, specular: 0xffffff, map: grainTex }) : toon({ color: 0xffffff, map: kTex(c.color, c.tex || 0) }));
+    m.add(new THREE.Mesh(new THREE.BoxGeometry(c.h.x * 2 + 0.07, c.h.y * 2 + 0.07, c.h.z * 2 + 0.07), INK));
+  } else if (c.kind === 'cyl') {
+    m = new THREE.Mesh(new THREE.CylinderGeometry(c.r, c.r, c.hh * 2, 40), toon({ color: 0xffffff, map: kTex(c.color, 3) }));
+    m.add(new THREE.Mesh(new THREE.CylinderGeometry(c.r + 0.035, c.r + 0.035, c.hh * 2 + 0.07, 40), INK));
+  } else if (c.kind === 'sphere') {
+    m = new THREE.Mesh(new THREE.SphereGeometry(c.r, 40, 28), new THREE.MeshPhongMaterial({ color: c.color, shininess: 170, specular: 0xffffff, map: grainTex }));
+    m.add(new THREE.Mesh(new THREE.SphereGeometry(c.r + 0.04, 40, 28), INK));
+  } else if (c.kind === 'pole') {
+    const len = c.a.distanceTo(c.b), t = stripes(c.color); t.repeat.set(1, len / 1.4);
+    m = new THREE.Mesh(new THREE.CylinderGeometry(c.r, c.r, len, 12), toon({ color: 0xffffff, map: t }));
+    m.add(new THREE.Mesh(new THREE.CylinderGeometry(c.r + 0.035, c.r + 0.035, len + 0.04, 12), INK));
+    m.position.copy(c.c); m.quaternion.setFromUnitVectors(V(0, 1, 0), c.b.clone().sub(c.a).normalize()); return m;
+  }
+  m.position.copy(c.c); if (c.q) m.quaternion.copy(c.q); return m;
+}
+function decorMesh(d) {
+  let m; const col = d.color;
+  if (d.kind === 'rings') { m = new THREE.Group(); let r = d.s * 1.4, i = 0; while (r > 0.15) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({ color: i % 2 ? d.color2 : PAL[(i * 3 + 1) % PAL.length], side: THREE.DoubleSide })); ring.position.z = i * 0.004; m.add(ring); r -= 0.18 + d.s * 0.12; i++; } }
+  else if (d.kind === 'tri') { const s = new THREE.Shape(); const a = d.s * 1.6; s.moveTo(0, a); s.lineTo(a * 0.9, -a * 0.6); s.lineTo(-a * 0.8, -a * 0.5); m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); }
+  else if (d.kind === 'line') { m = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, d.s * 5, 6), INK_F); }
+  else if (d.kind === 'checker') { m = new THREE.Mesh(new THREE.PlaneGeometry(d.s * 1.4, d.s * 1.4), new THREE.MeshBasicMaterial({ map: kTex(col, 5), side: THREE.DoubleSide })); }
+  else if (d.kind === 'arc') { m = new THREE.Mesh(new THREE.TorusGeometry(d.s, 0.05 + d.s * 0.04, 8, 40, Math.PI * (0.6 + d.s * 0.3)), new THREE.MeshBasicMaterial({ color: col })); }
+  else { m = new THREE.Mesh(new THREE.CircleGeometry(d.s * 0.8, 40), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); }
+  m.position.copy(d.p); m.rotation.set(...d.rot); m.userData.spin = (Math.random() - 0.5) * 0.12; return m;
+}
+function buildLevelMeshes(L) {
+  while (levelGroup.children.length) { const o = levelGroup.children.pop(); o.traverse(n => { if (n.geometry) n.geometry.dispose(); }); }
+  cpMarks.length = 0;
+  for (const c of L.cols) levelGroup.add(colMesh(c));
+  for (const d of L.decor) levelGroup.add(decorMesh(d));
+  L.cps.forEach((cp, i) => { if (!i) return; const s = spine(cp.z); const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.09, 10, 64), new THREE.MeshBasicMaterial({ color: 0x161412 })); ring.position.set(s.x + 1.1, s.y - 0.7, cp.z); levelGroup.add(ring); cpMarks.push(ring); });
+  // the goal: a big sun of rings ahead of the last platform
+  const s = spine(L.goalZ + 5), g = new THREE.Group(); let r = 4.2, i = 0;
+  while (r > 0.3) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 64), new THREE.MeshBasicMaterial({ color: ['#ffd21f', '#ff7a00', '#e8202a', '#e3218e', '#1c4fe0', '#161412'][i % 6], side: THREE.DoubleSide, fog: false })); ring.position.z = -i * 0.01; g.add(ring); r -= 0.7; i++; }
+  g.position.set(s.x + 1.1, s.y + 0.6, L.goalZ + 7); levelGroup.add(g);
+}
+
+/* ---------- floating background for depth ---------- */
+const bg = new THREE.Group(); scene.add(bg);
+const fogBlob = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); const g = x.createRadialGradient(64, 64, 6, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+function buildBackground() {
+  for (let i = 0; i < 26; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: fogBlob, color: new THREE.Color(PAL[i % PAL.length]).lerp(CREAM, 0.6), transparent: true, opacity: 0.5, depthWrite: false }));
+    m.scale.setScalar(rnd(5, 12)); m.userData.off = V(rnd(-16, 16), rnd(-12, 12), rnd(-6, 40)); m.userData.drift = rnd(0.1, 0.4); bg.add(m);
+  }
+}
+buildBackground();
+
+/* ---------- climbers: a bendy bean with two-bone limbs, a face and long hair that hangs to its own "down" ---------- */
+const BEAN = (() => {
+  const raw = [[0, 0], [0.22, 0.02], [0.34, 0.1], [0.385, 0.24], [0.365, 0.38], [0.3, 0.5], [0.275, 0.56], [0.31, 0.64], [0.345, 0.75], [0.315, 0.88], [0.2, 0.98], [0, 1.02]];
+  const prof = new THREE.SplineCurve(raw.map(([r, h]) => new THREE.Vector2(r, h))).getPoints(24);
+  prof[0].x = 0; prof[prof.length - 1].x = 0;
+  const g = new THREE.LatheGeometry(prof, 28); g.translate(0, -0.46, 0); g.computeVertexNormals(); return g;
+})();
+const BEAN_P = BEAN.attributes.position.array, BEAN_N = BEAN.attributes.normal.array;
+function seg(r, len) { const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 8), WHITE); m.add(new THREE.Mesh(new THREE.CapsuleGeometry(r + 0.026, len, 4, 8), INK)); return m; }
+function ball(r, sy) { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), WHITE); m.add(new THREE.Mesh(new THREE.SphereGeometry(r + 0.026, 12, 9), INK)); m.scale.set(1, sy || 1, 1); return m; }
+function limb(group, r, l1, l2, er, esy) { const L = { a: seg(r, l1), b: seg(r * 0.92, l2), e: ball(er, esy), l1, l2, tgt: V(), init: false }; group.add(L.a, L.b, L.e); return L; }
+const HAIR_N = 7, HAIR_S = 11, HAIR_SEG = 0.07;
+function makeClimber(role) {
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(BEAN.clone(), WHITE), out = new THREE.Mesh(BEAN.clone(), INK); root.add(body, out);
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.385, 0.032, 8, 36), INK_F); belt.rotation.x = Math.PI / 2; belt.position.y = -0.17; root.add(belt);
+  const head = new THREE.Group(); root.add(head);
+  const eyes = [];
+  for (const sx of [-1, 1]) {
+    const eg = new THREE.Group(); eg.position.set(sx * 0.12, 0.04, 0.315); head.add(eg);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.066, 14, 10), INK_F); e.scale.set(0.95, 1.35, 0.6); eg.add(e);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.position.set(0.02, 0.04, 0.04); eg.add(hl); eyes.push(eg);
+    const bl = new THREE.Mesh(new THREE.CircleGeometry(0.048, 18), new THREE.MeshBasicMaterial({ color: 0xff8fc7, transparent: true, opacity: 0.85 })); bl.position.set(sx * 0.215, -0.06, 0.285); bl.lookAt(sx * 0.7, -0.1, 1.4); head.add(bl);
+  }
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.048, 14, 9), INK_F); mouth.position.set(0, -0.095, 0.325); head.add(mouth);
+  const limbs = new THREE.Group();
+  const arms = [limb(limbs, 0.062, 0.25, 0.25, 0.088, 1), limb(limbs, 0.062, 0.25, 0.25, 0.088, 1)];
+  const legs = [limb(limbs, 0.072, 0.16, 0.16, 0.095, 0.7), limb(limbs, 0.072, 0.16, 0.16, 0.095, 0.7)];
+  // hair: verlet strands of ink beads, tipped with this climber's colour
+  const hairMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), INK_F, HAIR_N * HAIR_S);
+  const tips = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), toon({ color: ROLES[role].hue }), HAIR_N);
+  const strands = []; for (let i = 0; i < HAIR_N; i++) { const a = (i / HAIR_N) * Math.PI * 2; strands.push({ anchor: V(Math.cos(a) * 0.2, 0.47, Math.sin(a) * 0.2 - 0.05), p: [], q: [] }); }
+  return { role, root, body, out, belt, head, eyes, mouth, arms, legs, limbs, hairMesh, tips, strands, quat: new THREE.Quaternion(), lean: V(), strain: 0, blinkT: rnd(1, 3), blink: 0, lookT: rnd(2, 5), lookAway: 0, lookDir: V(), mouthOpen: 0, init: false, phase: rnd(0, 6) };
+}
+function addClimber(ch) { scene.add(ch.root, ch.limbs, ch.hairMesh, ch.tips); }
+function deform(ch, lean, s) {
+  const P = ch.body.geometry.attributes.position, O = ch.out.geometry.attributes.position, a = P.array, o = O.array, sxz = 1 / Math.sqrt(s);
+  for (let i = 0; i < a.length; i += 3) {
+    const x = BEAN_P[i], y = BEAN_P[i + 1], z = BEAN_P[i + 2], t = y + 0.46, k = t * t * 0.75;
+    const nx = x * sxz + lean.x * k, ny = y * s - (lean.x * lean.x + lean.z * lean.z) * k * 0.4, nz = z * sxz + lean.z * k;
+    a[i] = nx; a[i + 1] = ny; a[i + 2] = nz; o[i] = nx + BEAN_N[i] * 0.03; o[i + 1] = ny + BEAN_N[i + 1] * 0.03; o[i + 2] = nz + BEAN_N[i + 2] * 0.03;
+  }
+  P.needsUpdate = true; O.needsUpdate = true;
+}
+const leanAt = (ch, t) => V(ch.lean.x * t * t * 0.75, 0, ch.lean.z * t * t * 0.75);
+const Yv = V(0, 1, 0);
+function placeBone(m, p0, p1) { m.position.copy(p0).add(p1).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(Yv, p1.clone().sub(p0).normalize()); }
+function solveLimb(L, S, T, pole) {
+  const d = T.clone().sub(S); let dist = d.length(); const reach = L.l1 + L.l2 - 0.002;
+  if (dist > reach) { d.setLength(reach); dist = reach; } if (dist < 0.04) { d.set(0, -0.04, 0); dist = 0.04; }
+  const H = S.clone().add(d), dn = d.clone().normalize();
+  const a = (L.l1 * L.l1 - L.l2 * L.l2 + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, L.l1 * L.l1 - a * a));
+  const pn = pole.clone().addScaledVector(dn, -pole.dot(dn)); if (pn.lengthSq() < 1e-6) pn.set(1, 0, 0); pn.normalize();
+  const E = S.clone().addScaledVector(dn, a).addScaledVector(pn, h);
+  placeBone(L.a, S, E); placeBone(L.b, E, H); L.e.position.copy(H);
+}
+const tmpM = new THREE.Matrix4(), tq = new THREE.Quaternion(), iq = new THREE.Quaternion(), hairM = new THREE.Matrix4(), hairQ = new THREE.Quaternion(), hairS = V();
+// s: a view of the climber { p, up, state, speed, vel, grabPt, grabN, mouth, airT }, o: its partner's position, rope: { taut, dir }
+function animClimber(ch, s, o, rope, dt, time) {
+  const p = s.p, up = s.up;
+  const holding = rope.taut && o.state === 'air' && s.state !== 'air';
+  ch.strain = lerp(ch.strain, holding ? 1 : 0, 1 - Math.pow(0.02, dt));
+  const strain = ch.strain, jit = strain * 0.012;
+  ch.root.position.copy(p).add(V(rnd(-jit, jit), rnd(-jit, jit), rnd(-jit, jit)));
+  // facing
+  let fwd;
+  if (s.state === 'grab') fwd = s.grabN.clone().negate();
+  else if (s.speed > 0.4 && s.vel) fwd = s.vel.clone();
+  else fwd = s.look ? s.look.clone() : o.p.clone().sub(p);
+  fwd.addScaledVector(up, -fwd.dot(up)); if (fwd.lengthSq() < 1e-4) fwd.copy(V(0, 0, 1)).addScaledVector(up, -up.z);
+  fwd.normalize();
+  const xA = V().crossVectors(up, fwd).normalize(), zA = V().crossVectors(xA, up);
+  tmpM.makeBasis(xA, up, zA); tq.setFromRotationMatrix(tmpM);
+  if (!ch.init) ch.quat.copy(tq); ch.quat.slerp(tq, 1 - Math.pow(0.0006, dt)); ch.root.quaternion.copy(ch.quat);
+  iq.copy(ch.quat).invert();
+  const toLocal = v => v.clone().applyQuaternion(iq), toWorld = v => v.clone().applyQuaternion(ch.quat).add(p);
+  // lean away from a load; trail motion when flying
+  let leanW = V();
+  if (holding) leanW.copy(rope.dir).multiplyScalar(-0.26 * strain);
+  else if (s.state === 'air' && s.vel) leanW.copy(s.vel).multiplyScalar(-0.03).clampLength(0, 0.2);
+  else if (s.speed > 0.4 && s.vel) leanW.copy(s.vel).setLength(0.07);
+  const lt = toLocal(leanW); lt.y = 0; ch.lean.lerp(lt, 1 - Math.pow(0.002, dt));
+  const squash = 1 + strain * 0.05 + (s.state === 'air' ? 0.04 : 0);
+  deform(ch, ch.lean, squash);
+  const hl = leanAt(ch, 0.76); ch.head.position.set(hl.x, 0.3 * squash, hl.z); ch.head.rotation.set(ch.lean.z * 0.9, 0, -ch.lean.x * 0.9);
+  const bl = leanAt(ch, 0.29); ch.belt.position.set(bl.x, -0.17 * squash, bl.z);
+  // eyes: blink, look at your partner, sometimes glance away
+  ch.blinkT -= dt; if (ch.blinkT < 0) { ch.blink = 0.14; ch.blinkT = rnd(1.6, 4.4); } ch.blink = Math.max(0, ch.blink - dt);
+  ch.lookT -= dt; if (ch.lookT < 0) { ch.lookAway = rnd(0.5, 1.4); ch.lookT = rnd(2.2, 5); ch.lookDir.set(rnd(-1, 1), rnd(-0.6, 0.8), 0.4).normalize(); if (Math.random() < 0.4) ch.blink = 0.14; }
+  ch.lookAway = Math.max(0, ch.lookAway - dt);
+  const look = (ch.lookAway > 0 && strain < 0.3) ? ch.lookDir.clone() : toLocal(o.p.clone().sub(p).normalize());
+  const lx = clamp(look.x, -1, 1) * 0.05, ly = clamp(look.y, -1, 1) * 0.04;
+  ch.eyes.forEach((e, k) => { e.position.x = lerp(e.position.x, (k ? 0.12 : -0.12) + lx, 0.25); e.position.y = lerp(e.position.y, 0.04 + ly, 0.25); e.scale.set(1, ch.blink > 0 ? 0.12 : 1 - strain * 0.5, 1); });
+  // mouth follows the voice; a gasp when falling
+  const open = Math.max(s.mouth || 0, s.state === 'air' && s.airT > 0.5 ? 0.8 : 0);
+  ch.mouthOpen = lerp(ch.mouthOpen, open, 0.4);
+  ch.mouth.scale.set(1.5 - ch.mouthOpen * 0.4 + strain * 0.7, 0.35 + ch.mouthOpen * 1.4 - strain * 0.12, 0.5);
+  // limbs
+  const shL = k => toWorld(V((k ? 1 : -1) * 0.3, 0.03, 0.02).add(leanAt(ch, 0.49)));
+  const hipL = k => toWorld(V((k ? 1 : -1) * 0.17, -0.34, 0.02).add(leanAt(ch, 0.12)));
+  const ground = p.clone().addScaledVector(up, -0.46), walking = s.state === 'ground' && s.speed > 0.4, climbing = s.state === 'grab' && s.speed > 0.2;
+  const cyc = time * (climbing ? 7 : 4 + s.speed * 1.8);
+  const kq = 1 - Math.pow(0.0004, dt);
+  for (let k = 0; k < 2; k++) {
+    const side = k ? 1 : -1, S = shL(k), H = hipL(k), ph = cyc + k * Math.PI;
+    let T, poleV = xA.clone().multiplyScalar(side).addScaledVector(up, -0.6);
+    if (s.state === 'grab') {
+      T = s.grabPt.clone().addScaledVector(s.grabN, 0.06).addScaledVector(xA, side * 0.16).addScaledVector(up, 0.22 + (climbing ? Math.max(0, Math.cos(ph)) * 0.1 : 0));
+      if (s.grabKind === 'pole') T = s.grabPt.clone().addScaledVector(s.grabAxis || xA, side * 0.14).addScaledVector(s.grabN, 0.05);
+    } else if (rope.taut && k === 1) T = p.clone().addScaledVector(rope.dir, 0.62).addScaledVector(up, -0.1);
+    else if (s.state === 'air') T = S.clone().addScaledVector(up, 0.32).addScaledVector(xA, side * 0.22).addScaledVector(zA, Math.sin(time * 14 + k * 2) * 0.15);
+    else if (walking) T = S.clone().addScaledVector(up, -0.36).addScaledVector(zA, Math.sin(ph) * 0.16).addScaledVector(xA, side * 0.06);
+    else T = S.clone().addScaledVector(up, -0.36).addScaledVector(xA, side * 0.1).addScaledVector(zA, 0.06 + Math.sin(time * 2 + k) * 0.03);
+    const A = ch.arms[k]; if (!A.init) { A.tgt.copy(T); A.init = true; } A.tgt.lerp(T, kq); solveLimb(A, S, A.tgt, poleV);
+    let F, knee = zA.clone().addScaledVector(up, 0.2);
+    if (s.state === 'grab' && s.grabKind !== 'pole') F = s.grabPt.clone().addScaledVector(s.grabN, 0.06).addScaledVector(xA, side * 0.12).addScaledVector(up, -0.32 + (climbing ? Math.max(0, Math.cos(ph + Math.PI)) * 0.08 : 0));
+    else if (s.state === 'ground') { F = ground.clone().addScaledVector(xA, side * 0.16).addScaledVector(zA, walking ? Math.sin(ph) * 0.17 : 0.03).addScaledVector(up, walking ? Math.max(0, Math.cos(ph)) * 0.1 : 0); if (holding) F.addScaledVector(rope.dir, -0.12); }
+    else F = H.clone().addScaledVector(up, -0.26).addScaledVector(zA, Math.sin(time * (s.state === 'air' ? 12 : 3) + k * Math.PI) * 0.12).addScaledVector(xA, side * 0.06);
+    const Lg = ch.legs[k]; if (!Lg.init) { Lg.tgt.copy(F); Lg.init = true; } Lg.tgt.lerp(F, kq); solveLimb(Lg, H, Lg.tgt, knee); Lg.e.quaternion.copy(ch.quat);
+  }
+  // hair
+  const g = up.clone().multiplyScalar(-G), h2 = Math.min(dt, 1 / 30) ** 2, headC = toWorld(V(hl.x, 0.3, hl.z)), bodyC = p;
+  let n = 0;
+  ch.strands.forEach((st, si) => {
+    const root = toWorld(st.anchor.clone().add(V(hl.x, 0, hl.z)));
+    if (!st.p.length || !ch.init) { st.p = []; st.q = []; for (let i = 0; i < HAIR_S; i++) { const v = root.clone().addScaledVector(up, -i * HAIR_SEG); st.p.push(v); st.q.push(v.clone()); } }
+    st.p[0].copy(root);
+    for (let i = 1; i < HAIR_S; i++) { const v = st.p[i].clone().sub(st.q[i]).multiplyScalar(0.94); st.q[i].copy(st.p[i]); st.p[i].add(v).addScaledVector(g, h2); }
+    for (let it = 0; it < 3; it++) for (let i = 1; i < HAIR_S; i++) {
+      const a = st.p[i - 1], b = st.p[i], d = b.clone().sub(a), l = d.length() || 1e-6; b.copy(a).addScaledVector(d, HAIR_SEG / l);
+      const dh = b.clone().sub(headC), lh = dh.length(); if (lh < 0.37) b.copy(headC).addScaledVector(dh, 0.37 / (lh || 1));
+      const db = b.clone().sub(bodyC), lb = db.length(); if (lb < 0.43) b.copy(bodyC).addScaledVector(db, 0.43 / (lb || 1));
+    }
+    for (let i = 0; i < HAIR_S; i++) { const r = 0.062 - i * 0.0025; hairM.compose(st.p[i], hairQ, hairS.set(r, r, r)); ch.hairMesh.setMatrixAt(n++, hairM); }
+    hairM.compose(st.p[HAIR_S - 1].clone().addScaledVector(up, -0.03), hairQ, hairS.set(0.07, 0.07, 0.07)); ch.tips.setMatrixAt(si, hairM);
+  });
+  ch.hairMesh.instanceMatrix.needsUpdate = true; ch.tips.instanceMatrix.needsUpdate = true;
+  ch.hairMesh.frustumCulled = false; ch.tips.frustumCulled = false;
+  ch.init = true;
+}
+
+/* ---------- rope: drapes when slack, follows the wrapped taut route when tight ---------- */
+const RN = 24;
+const ropeW = new THREE.Mesh(new THREE.BufferGeometry(), toon({ color: 0xffffff })), ropeO = new THREE.Mesh(new THREE.BufferGeometry(), INK);
+scene.add(ropeW, ropeO);
+const rope = { p: [], q: [] };
+function resetRopeDraw(a, b) { rope.p = []; rope.q = []; for (let i = 0; i < RN; i++) { const v = a.clone().lerp(b, i / (RN - 1)); rope.p.push(v); rope.q.push(v.clone()); } }
+function drawRope(a, b, gA, gB, L, band, taut, cols, dt) {
+  if (!rope.p.length) resetRopeDraw(a, b);
+  const segL = L / (RN - 1), h2 = Math.min(dt, 1 / 30) ** 2;
+  const bandAt = u => { const x = u * (NB - 1), k = Math.min(NB - 2, Math.floor(x)); return band[k].clone().lerp(band[k + 1], x - k); };
+  for (let i = 1; i < RN - 1; i++) {
+    const p = rope.p[i], v = p.clone().sub(rope.q[i]).multiplyScalar(0.95); rope.q[i].copy(p);
+    p.add(v).addScaledVector(gA.clone().lerp(gB, i / (RN - 1)).normalize(), -G * h2 * 0.6);
+    p.lerp(bandAt(i / (RN - 1)), taut ? 0.6 : 0.02);
+  }
+  const near = nearCols(cols, a.clone().add(b).multiplyScalar(0.5), L / 2 + 1.5);
+  for (let it = 0; it < 12; it++) {
+    rope.p[0].copy(a); rope.p[RN - 1].copy(b);
+    for (let i = 0; i < RN - 1; i++) { const p = rope.p[i], q = rope.p[i + 1], d = q.clone().sub(p), l = d.length(); if (l > segL) { const k = (l - segL) / l * 0.5; if (i > 0) p.addScaledVector(d, k); if (i + 1 < RN - 1) q.addScaledVector(d, -k); } }
+    if (it % 3 === 2) for (let i = 1; i < RN - 1; i++) pushOut(rope.p[i], near, 0.06);
+  }
+  rope.p[0].copy(a); rope.p[RN - 1].copy(b);
+  const curve = new THREE.CatmullRomCurve3(rope.p, false, 'centripetal');
+  ropeW.geometry.dispose(); ropeO.geometry.dispose();
+  ropeW.geometry = new THREE.TubeGeometry(curve, 48, 0.045, 6, false); ropeO.geometry = new THREE.TubeGeometry(curve, 48, 0.075, 6, false);
+}
+
+/* ================= Roped: game loop, controls, multiplayer, voice ================= */
+const $ = id => document.getElementById(id);
+document.getElementById('stage').appendChild(renderer.domElement);
+$('grain').style.backgroundImage = `url(${noiseCanvas(220, 150, 255, 60).toDataURL()})`;
+
+/* ---------- sound: tiny synth blips ---------- */
+const sfx = { ctx: null,
+  init() { if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; } try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.out = this.ctx.createGain(); this.out.gain.value = 0.5; this.out.connect(this.ctx.destination); } catch (e) {} },
+  tone(f0, f1, dur, type, vol) { const c = this.ctx; if (!c) return; const o = c.createOscillator(), g = c.createGain(), t = c.currentTime; o.type = type || 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur); g.gain.setValueAtTime(vol || 0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g); g.connect(this.out); o.start(t); o.stop(t + dur + 0.02); },
+  play(k) { if (!this.ctx) return; ({ jump: () => this.tone(320, 640, 0.16, 'triangle', 0.18), land: () => this.tone(180, 90, 0.1, 'sine', 0.2), grab: () => this.tone(900, 700, 0.06, 'square', 0.08),
+    yank: () => this.tone(500, 120, 0.45, 'sawtooth', 0.12), cp: () => { this.tone(523, 523, 0.18, 'triangle', 0.2); setTimeout(() => this.tone(784, 784, 0.3, 'triangle', 0.2), 140); },
+    fall: () => this.tone(600, 60, 1.1, 'sine', 0.2), win: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, f, 0.35, 'triangle', 0.2), i * 150)) }[k] || (() => {}))(); } };
+
+/* ---------- game state ---------- */
+const game = { mode: 'title', net: false, me: 'A', active: 'A', level: null, A: null, B: null, remote: null, band: null, lives: 5, cp: 0, t0: 0, acc: 0, over: false, respawnT: 0, seed: 0 };
+const ROLE_NAME = { A: 'A', B: 'B' };
+function spawnPos(role, cpI) { const z = game.level.cps[cpI].z; return role === 'A' ? laneA(z).add(V(0, 0.02, 0)) : laneB(z).add(V(0.02, 0, 0)); }
+function makeRemote(role) { const b = makeBody(role, spawnPos(role, 0)); b.remote = true; b.snaps = []; return b; }
+function startGame(seed, net) {
+  game.seed = seed; game.net = net; game.level = genLevel(seed); buildLevelMeshes(game.level);
+  game.lives = 5; game.cp = 0; game.over = false; game.t0 = performance.now(); game.acc = 0; game.respawnT = 0;
+  if (!net) { game.me = 'A'; game.active = 'A'; game.A = makeBody('A', spawnPos('A', 0)); game.B = makeBody('B', spawnPos('B', 0)); }
+  else { game.active = game.me; game[game.me] = makeBody(game.me, spawnPos(game.me, 0)); const o = game.me === 'A' ? 'B' : 'A'; game[o] = makeRemote(o); }
+  game.A.isFirst = true; game.B.isFirst = false;
+  game.band = makeBand(game.A.p, game.B.p); resetRopeDraw(game.A.p, game.B.p);
+  for (const ch of [chA, chB]) ch.init = false;
+  camState.init = false;
+  showScreen(null); $('hud').hidden = false; $('bSwap').hidden = net; $('hudMic').hidden = !net; updateSwap();
+  renderLives(); game.mode = 'play';
+  toast(net ? `You are ${game.me}. ${game.me === 'A' ? 'Your down is down.' : 'Your down is sideways.'} Climb to the sun.` : 'Practice: you control both. Tap Swap to switch.');
+  rotateHint();
+}
+function respawn(cpI) {
+  game.cp = cpI;
+  for (const r of ['A', 'B']) { const b = game[r]; if (b.remote) { b.snaps = []; b.p.copy(spawnPos(r, cpI)); continue; }
+    b.p.copy(spawnPos(r, cpI)); b.v.set(0, 0, 0); b.state = 'ground'; b.airT = 0; b.grab = null; b.yankT = 0; b.halfL = 2.2; }
+  game.band = makeBand(game.A.p, game.B.p); resetRopeDraw(game.A.p, game.B.p);
+}
+function renderLives() { $('lives').innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < game.lives ? '' : 'gone'}"></i>`).join(''); }
+let toastT = null;
+function toast(s, ms) { const t = $('toast'); t.textContent = s; t.classList.remove('hide'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hide'), ms || 2600); }
+function showScreen(id) { for (const s of ['sTitle', 'sLobby', 'sEnd']) $(s).hidden = s !== id; }
+function rotateHint() { $('rotate').classList.toggle('want', game.mode === 'play'); }
+const isHost = () => !game.net || NET.host;
+
+// who fell, what's next: the host keeps score
+function onFell(role) {
+  if (!isHost()) { netSend({ t: 'fell', r: role }); return; }
+  if (game.respawnT > 0 || game.over) return;
+  game.lives--; renderLives(); sfx.play('fall');
+  if (game.lives <= 0) { game.over = true; netSend({ t: 'resp', cp: game.cp, lives: 0, over: 1 }); endGame(false); return; }
+  toast(`${role} fell. ${game.lives} ${game.lives === 1 ? 'life' : 'lives'} left.`); game.respawnT = 1.2;
+  netSend({ t: 'resp', cp: game.cp, lives: game.lives, by: role });
+}
+function endGame(won) {
+  game.mode = 'end'; $('hud').hidden = true; rotateHint();
+  const secs = Math.round((performance.now() - game.t0) / 1000), tm = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  $('endTitle').textContent = won ? 'You reached the sun' : 'Out of lives';
+  $('endText').textContent = won ? `Climbed in ${tm} with ${game.lives} ${game.lives === 1 ? 'life' : 'lives'} to spare.` : `You got ${Math.round(maxZ() / game.level.goalZ * 100)}% of the way. A new painting is waiting.`;
+  $('againBtn').hidden = game.net && !NET.host; showScreen('sEnd'); if (won) sfx.play('win');
+}
+const maxZ = () => Math.max(game.A.p.z, game.B.p.z);
+
+/* ---------- input ---------- */
+const keys = {}, touchIn = { x: 0, y: 0, jump: false, grab: false, rin: false, rout: false };
+addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; keys[e.code] = true; if (e.code === 'Tab') { e.preventDefault(); swap(); } if (e.code === 'Space') e.preventDefault(); sfx.init(); });
+addEventListener('keyup', e => { keys[e.code] = false; });
+function readInput() {
+  const k = c => keys[c] ? 1 : 0;
+  const kx = k('KeyD') + k('ArrowRight') - k('KeyA') - k('ArrowLeft'), ky = k('KeyW') + k('ArrowUp') - k('KeyS') - k('ArrowDown');
+  return { x: clamp(kx + touchIn.x, -1, 1), y: clamp(ky + touchIn.y, -1, 1), jump: !!(keys.Space || touchIn.jump), grab: !!(keys.ShiftLeft || keys.ShiftRight || keys.KeyK || touchIn.grab), rin: !!(keys.KeyQ || touchIn.rin), rout: !!(keys.KeyE || touchIn.rout) };
+}
+const joy = { id: null, ox: 0, oy: 0 }, look = { id: null, x: 0, y: 0 };
+const hudEl = $('hud');
+hudEl.addEventListener('pointerdown', e => {
+  sfx.init();
+  if (e.target.closest('.pad,.hb,.hudbtns,button')) return;
+  if (e.pointerType !== 'mouse' && e.clientX < innerWidth * 0.45 && joy.id === null) { joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; const j = $('joy'); j.style.display = 'block'; j.style.left = e.clientX + 'px'; j.style.top = e.clientY + 'px'; j.firstChild.style.transform = ''; }
+  else if (look.id === null) { look.id = e.pointerId; look.x = e.clientX; look.y = e.clientY; }
+});
+addEventListener('pointermove', e => {
+  if (e.pointerId === joy.id) { let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy; const l = Math.hypot(dx, dy), m = 48; if (l > m) { dx *= m / l; dy *= m / l; } $('joy').firstChild.style.transform = `translate(${dx}px,${dy}px)`; touchIn.x = dx / m; touchIn.y = -dy / m; }
+  else if (e.pointerId === look.id) { const b = activeBody(); if (b) { b.yaw -= (e.clientX - look.x) * 0.006; b.pitch = clamp(b.pitch + (e.clientY - look.y) * 0.004, -0.5, 1.2); } look.x = e.clientX; look.y = e.clientY; }
+});
+const endPtr = e => { if (e.pointerId === joy.id) { joy.id = null; touchIn.x = touchIn.y = 0; $('joy').style.display = 'none'; } if (e.pointerId === look.id) look.id = null; };
+addEventListener('pointerup', endPtr); addEventListener('pointercancel', endPtr);
+function holdPad(id, key) { const el = $(id); const on = e => { e.preventDefault(); sfx.init(); touchIn[key] = true; el.classList.add('on'); el.setPointerCapture && el.setPointerCapture(e.pointerId); }; const off = () => { touchIn[key] = false; el.classList.remove('on'); };
+  el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('lostpointercapture', off); }
+holdPad('bJump', 'jump'); holdPad('bGrab', 'grab'); holdPad('bIn', 'rin'); holdPad('bOut', 'rout');
+function activeBody() { return game.mode === 'play' ? game[game.active] : null; }
+function swap() { if (game.net || game.mode !== 'play') return; const prev = game[game.active]; prev.input = { x: 0, y: 0, jump: false, grab: prev.state === 'grab', rin: false, rout: false }; game.active = game.active === 'A' ? 'B' : 'A'; camState.init = false; updateSwap(); toast(`Now playing ${game.active}`); }
+function updateSwap() { $('bSwap').textContent = `Swap to ${game.active === 'A' ? 'B' : 'A'}`; }
+$('bSwap').addEventListener('click', swap);
+
+/* ---------- camera: behind your climber, with your own "up" as the screen's up ---------- */
+const camState = { init: false, pos: V(), up: V(0, 1, 0), tgt: V() };
+function updateCamera(dt) {
+  const b = game[game.active]; if (!b) return;
+  const { f } = camBasis(b), up = b.up, D = 4.8;
+  const tgt = b.p.clone().addScaledVector(up, 0.6);
+  const pos = tgt.clone().addScaledVector(f, -D * Math.cos(b.pitch)).addScaledVector(up, D * Math.sin(b.pitch) + 0.3);
+  const k = camState.init ? 1 - Math.pow(0.002, dt) : 1;
+  camState.pos.lerp(pos, k); camState.tgt.lerp(tgt, k); camState.up.lerp(up, camState.init ? 1 - Math.pow(0.01, dt) : 1).normalize(); camState.init = true;
+  camera.position.copy(camState.pos); camera.up.copy(camState.up); camera.lookAt(camState.tgt.clone().addScaledVector(f, 1.2));
+}
+
+/* ---------- the loop ---------- */
+const chA = makeClimber('A'), chB = makeClimber('B'); addClimber(chA); addClimber(chB);
+const clock = new THREE.Clock(); let time = 0, titleSeed = (Math.random() * 1e9) | 0;
+const events = [];
+function physics(dt) {
+  const A = game.A, B = game.B, cols = game.level.cols;
+  for (const b of [A, B]) {
+    if (b.remote) continue;
+    b.input = (game.net || game.active === b.role) ? readInput() : Object.assign(b.input, { x: 0, y: 0, jump: false, rin: false, rout: false });
+    events.length = 0; stepBody(b, dt, cols, events);
+    if (game.active === b.role) for (const e of events) sfx.play(e);
+  }
+  const len = stepBand(game.band, A.p, B.p, cols), L = A.halfL + B.halfL;
+  game.ropeLen = len; game.ropeL = L;
+  for (const b of [A, B]) {
+    if (b.remote) continue; const o = b === A ? B : A;
+    const share = (!o.remote && o.state !== 'grab' && b.state !== 'grab') ? 0.5 : (game.net ? 0.6 : 1);
+    events.length = 0; ropeStep(b, o, L, len, game.band, dt, share, events);
+    if (events.includes('yank')) { toast(`${b.role} is pulled off by the falling partner!`); sfx.play('yank'); }
+  }
+  // falls
+  for (const b of [A, B]) {
+    if (b.remote) continue; const s = spine(b.p.z), off = Math.hypot(b.p.x - s.x - 1.1, b.p.y - s.y + 0.7);
+    if ((off > 15 || b.p.z < -9 || b.airT > 8) && game.respawnT <= 0 && !b.fellSent) { b.fellSent = true; onFell(b.role); }
+  }
+  // checkpoints and the goal (host decides)
+  if (isHost() && !game.over) {
+    const cps = game.level.cps;
+    for (let i = game.cp + 1; i < cps.length; i++) if (maxZ() > cps[i].z) { game.cp = i; netSend({ t: 'cp', i }); toast('Checkpoint'); sfx.play('cp'); }
+    const gz = game.level.goalZ - 2.5;
+    if (A.p.z > gz && B.p.z > gz && game.respawnT <= 0) { game.over = true; netSend({ t: 'win', lives: game.lives }); endGame(true); }
+  }
+}
+function remoteFrame(dt) {
+  const r = game.net ? game[game.me === 'A' ? 'B' : 'A'] : null; if (!r || !r.snaps.length) return;
+  const s = r.snaps[r.snaps.length - 1], k = 1 - Math.exp(-dt * 14);
+  if (r.p.distanceToSquared(s.p) > 25) r.p.copy(s.p); else r.p.lerp(s.p.clone().addScaledVector(s.v, Math.min(0.12, (performance.now() - s.at) / 1000)), k);
+  r.v.copy(s.v); r.state = s.st; r.airT = s.at2; r.halfL = s.hl; r.mouth = s.mo; r.grabPt.copy(s.gp); r.grabN.copy(s.gn); r.grabKind = s.gk; r.speed = s.sp;
+}
+function viewOf(b) { return { p: b.p, up: b.up, state: b.state, speed: b.speed || 0, vel: b.v, grabPt: b.grabPt, grabN: b.grabN, grabKind: b.grab ? b.grab.kind : b.grabKind, grabAxis: b.grab && b.grab.kind === 'pole' ? b.grab.b.clone().sub(b.grab.a).normalize() : null, mouth: b.mouth, airT: b.airT, look: b.remote ? null : camBasis(b).f }; }
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05); time += dt;
+  if (game.mode === 'play' || game.mode === 'end') {
+    if (game.mode === 'play') {
+      game.acc += dt; let n = 0; while (game.acc >= 1 / 60 && n++ < 4) { game.acc -= 1 / 60; physics(1 / 60); } if (n >= 4) game.acc = 0;
+      if (game.respawnT > 0) { game.respawnT -= dt; if (game.respawnT <= 0) { respawn(game.cp); for (const b of [game.A, game.B]) b.fellSent = false; } }
+    }
+    remoteFrame(dt); voiceFrame(dt); netFrame(dt);
+    const A = game.A, B = game.B, va = viewOf(A), vb = viewOf(B), taut = game.ropeLen > game.ropeL - 0.05;
+    const dirA = game.band[1].clone().sub(A.p).normalize(), dirB = game.band[NB - 2].clone().sub(B.p).normalize();
+    animClimber(chA, va, vb, { taut, dir: dirA }, dt, time); animClimber(chB, vb, va, { taut, dir: dirB }, dt, time);
+    drawRope(A.p.clone().addScaledVector(A.up, -0.17), B.p.clone().addScaledVector(B.up, -0.17), A.up.clone().negate(), B.up.clone().negate(), game.ropeL || 4.4, game.band, taut, game.level.cols, dt);
+    updateCamera(dt);
+    const gz = game.level.goalZ; $('progA').style.left = `calc(${clamp(A.p.z / gz, 0, 1) * 100}% - 5px)`; $('progB').style.left = `calc(${clamp(B.p.z / gz, 0, 1) * 100}% - 5px)`;
+  } else {
+    // title: drift through a fresh painting
+    if (!game.level) { game.level = genLevel(titleSeed); buildLevelMeshes(game.level); }
+    const z = (time * 2.2) % (game.level.goalZ - 4), s = spine(z);
+    camera.position.set(s.x + 4.5 + Math.sin(time * 0.3) * 1.5, s.y + 2.5, z - 6); camera.up.set(0, 1, 0); camera.lookAt(s.x + 1, s.y - 0.5, z + 4);
+  }
+  for (const m of levelGroup.children) if (m.userData.spin) m.rotation.z += m.userData.spin * dt;
+  const cz = camera.position.z, cs = spine(cz);
+  bg.children.forEach(m => { const o = m.userData.off; o.x += m.userData.drift * dt; if (o.x > 16) o.x = -16; let z = o.z; m.position.set(cs.x + o.x, cs.y + o.y, cz + z); });
+  renderer.render(scene, camera);
+}
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+/* ---------- multiplayer: PeerJS with 4-digit codes (host = A, joiner = B) ---------- */
+const NET = { on: false, host: false, code: '', id: '', peer: null, conn: null, sendT: 0, test: /[?&]nettest/.test(location.search) };
+const NET_PREFIX = 'roped-sc-'; let NET_ICE = null;
+function Em() { this._h = {}; } Em.prototype.on = function (k, f) { (this._h[k] = this._h[k] || []).push(f); return this; }; Em.prototype.emit = function (k, ...a) { (this._h[k] || []).forEach(f => f(...a)); };
+function BCConn(o, r) { Em.call(this); this.o = o; this.peer = r; this.open = false; } BCConn.prototype = Object.create(Em.prototype);
+BCConn.prototype.ready = function () { if (this.open) return; this.open = true; setTimeout(() => this.emit('open'), 0); };
+BCConn.prototype.send = function (d) { this.o.bc.postMessage({ to: this.peer, from: this.o.id, k: 'data', d }); };
+BCConn.prototype.close = function () { this.o.bc.postMessage({ to: this.peer, from: this.o.id, k: 'close' }); };
+function BCPeer(id) { Em.call(this); this.id = id || 'g' + Math.random().toString(36).slice(2, 9); this.conns = {}; this.bc = new BroadcastChannel('roped-net');
+  this.bc.onmessage = e => { const m = e.data; if (m.to !== this.id) return; const c = this.conns[m.from];
+    if (m.k === 'conn') { const n = new BCConn(this, m.from); this.conns[m.from] = n; this.emit('connection', n); n.ready(); this.bc.postMessage({ to: m.from, from: this.id, k: 'ok' }); }
+    else if (m.k === 'ok') c && c.ready(); else if (m.k === 'data') c && c.emit('data', m.d); else if (m.k === 'close') c && c.emit('close'); };
+  setTimeout(() => this.emit('open', this.id), 10); }
+BCPeer.prototype = Object.create(Em.prototype);
+BCPeer.prototype.connect = function (id) { const c = new BCConn(this, id); this.conns[id] = c; this.bc.postMessage({ to: id, from: this.id, k: 'conn' }); setTimeout(() => { if (!c.open) this.emit('error', { type: 'peer-unavailable' }); }, 1500); return c; };
+BCPeer.prototype.call = function () { return null; }; BCPeer.prototype.destroy = function () { try { this.bc.close(); } catch (e) {} };
+async function makeIce() {
+  const stun = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+  try { const user = Math.floor(Date.now() / 1000 + 24 * 3600) + ':roped';
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('openrelayprojectsecret'), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(user))), H = 'staticauth.openrelay.metered.ca';
+    return stun.concat([{ urls: ['turn:' + H + ':80', 'turn:' + H + ':80?transport=tcp', 'turn:' + H + ':443', 'turns:' + H + ':443?transport=tcp'], username: user, credential: btoa(String.fromCharCode(...sig)) }]);
+  } catch (e) { return stun; } }
+async function loadPeer() { if (NET.test) return; if (!NET_ICE) NET_ICE = await makeIce(); if (window.Peer) return;
+  await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('load')); document.head.append(sc); }); }
+function makePeer(id) { if (NET.test) return new BCPeer(id); const o = { debug: 1, config: { iceServers: NET_ICE } }; return id ? new window.Peer(id, o) : new window.Peer(o); }
+function lob(t) { $('lobStatus').textContent = t || ''; $('lobStatus2').textContent = t || ''; }
+function errText(e) { return e.type === 'peer-unavailable' ? 'No game with that code. Check it and try again.' : (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') ? "Can't reach the matchmaker. Check the internet and try again." : 'Something went wrong (' + e.type + '). Try again.'; }
+function netReset() { voiceStop(); try { NET.conn && NET.conn.close(); } catch (e) {} try { NET.peer && NET.peer.destroy(); } catch (e) {} Object.assign(NET, { on: false, host: false, code: '', id: '', peer: null, conn: null }); }
+async function netHost() {
+  netReset(); lob('Starting…');
+  try { await loadPeer(); } catch (e) { return lob("Couldn't load the multiplayer part. Check the internet and try again."); }
+  const go = () => { const code = String(1000 + Math.floor(Math.random() * 9000)), peer = makePeer(NET_PREFIX + code); NET.peer = peer;
+    peer.on('open', id => { Object.assign(NET, { on: true, host: true, code, id }); $('lobCode').textContent = code; $('lobTitle').textContent = 'Your game'; $('startBtn').hidden = false; $('startBtn').disabled = true; showScreen('sLobby'); lob('Waiting for your partner to join…'); voiceInit(); });
+    peer.on('connection', c => { if (NET.conn) { c.on('open', () => { c.send({ t: 'full' }); setTimeout(() => c.close(), 400); }); return; } attach(c); });
+    peer.on('call', voiceAnswer);
+    peer.on('error', e => { if (e.type === 'unavailable-id') { try { peer.destroy(); } catch (_) {} go(); return; } lob(errText(e)); }); };
+  go();
+}
+async function netJoin(code) {
+  code = String(code || '').trim(); if (!/^\d{4}$/.test(code)) return lob('Type the 4-digit code from the host.');
+  netReset(); NET.code = code; lob('Connecting to ' + code + '…');
+  try { await loadPeer(); } catch (e) { return lob("Couldn't load the multiplayer part. Check the internet and try again."); }
+  const peer = makePeer(); NET.peer = peer;
+  peer.on('open', id => { NET.id = id; attach(peer.connect(NET_PREFIX + code, { reliable: true })); });
+  peer.on('call', voiceAnswer);
+  peer.on('error', e => { if (!NET.on) lob(errText(e)); });
+  setTimeout(() => { if (!NET.on && NET.code === code) lob("Couldn't connect. Check the code and try again."); }, 20000);
+}
+function attach(c) {
+  c.on('open', () => { NET.conn = c;
+    if (NET.host) { lob('Your partner is here. Tap Start when you are both ready.'); $('startBtn').disabled = false; sfx.play('cp'); voiceCall(c.peer); }
+    else { Object.assign(NET, { on: true, host: false }); $('lobCode').textContent = NET.code; $('lobTitle').textContent = 'Joined'; $('startBtn').hidden = true; showScreen('sLobby'); lob('Connected. The host starts the climb.'); voiceInit(); } });
+  c.on('data', netData); c.on('close', netDrop); c.on('error', netDrop);
+}
+function netSend(m) { if (!game.net && !NET.conn) return; try { NET.conn && NET.conn.open !== false && NET.conn.send(m); } catch (e) {} }
+function netDrop() {
+  if (!NET.on) return; NET.conn = null;
+  if (NET.host) { lob('Your partner left. Waiting for someone new…'); $('startBtn').disabled = true; if (game.mode === 'play') { toast('Your partner lost their connection.', 4000); } }
+  else { const playing = game.mode === 'play'; netReset(); toMenu(); lob(playing ? 'The host left the game.' : 'The host closed the game.'); }
+}
+const r2 = v => Math.round(v * 100) / 100, a3 = v => [r2(v.x), r2(v.y), r2(v.z)];
+const STATES = ['ground', 'air', 'grab'];
+function netFrame(dt) {
+  if (!game.net || game.mode !== 'play' || !NET.conn) return;
+  NET.sendT -= dt; if (NET.sendT > 0) return; NET.sendT = 1 / 20;
+  const b = game[game.me];
+  netSend({ t: 's', p: a3(b.p), v: a3(b.v), st: STATES.indexOf(b.state), at: r2(b.airT), hl: r2(b.halfL), mo: r2(b.mouth || 0), gp: a3(b.grabPt), gn: a3(b.grabN), gk: b.grab && b.grab.kind === 'pole' ? 'pole' : 'grid', sp: r2(b.speed || 0) });
+}
+function netData(m) {
+  const other = game.net ? game[game.me === 'A' ? 'B' : 'A'] : null;
+  switch (m.t) {
+    case 'start': if (!NET.host) { game.me = 'B'; startGame(m.seed, true); } break;
+    case 's': if (other && other.remote) { other.snaps = [{ p: V(...m.p), v: V(...m.v), st: STATES[m.st] || 'air', at2: m.at, hl: m.hl, mo: m.mo, gp: V(...m.gp), gn: V(...m.gn), gk: m.gk, sp: m.sp, at: performance.now() }]; } break;
+    case 'fell': if (NET.host) onFell(m.r); break;
+    case 'resp': if (!NET.host) { game.lives = m.lives; renderLives(); if (m.over) { game.over = true; endGame(false); } else { toast(`${m.by} fell. ${m.lives} ${m.lives === 1 ? 'life' : 'lives'} left.`); sfx.play('fall'); game.respawnT = 1.2; game.cp = m.cp; } } break;
+    case 'cp': if (!NET.host && m.i > game.cp) { game.cp = m.i; toast('Checkpoint'); sfx.play('cp'); } break;
+    case 'win': if (!NET.host) { game.lives = m.lives; game.over = true; endGame(true); } break;
+    case 'full': lob('That game already has two climbers.'); netReset(); break;
+    case 'bye': netDrop(); break;
+  }
+}
+
+/* ---------- voice: hear each other, and your mouths move when you talk ---------- */
+const VOICE = { local: null, calls: {}, nodes: {}, an: null, buf: null, muted: false, ready: null };
+function silentStream() { sfx.init(); return sfx.ctx ? sfx.ctx.createMediaStreamDestination().stream : new MediaStream(); }
+function voiceInit() {
+  if (VOICE.ready) return VOICE.ready; sfx.init();
+  VOICE.ready = (async () => { if (NET.test || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    try { VOICE.local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (e) { VOICE.local = null; lob('No microphone: you can still hear your partner.'); return; }
+    if (sfx.ctx) { const an = sfx.ctx.createAnalyser(); an.fftSize = 512; sfx.ctx.createMediaStreamSource(VOICE.local).connect(an); VOICE.an = an; VOICE.buf = new Float32Array(an.fftSize); }
+    syncMic(); })();
+  return VOICE.ready;
+}
+function voiceCall(id) { if (!NET.peer || NET.test) return; (VOICE.ready || voiceInit()).then(() => { try { const call = NET.peer.call(id, VOICE.local || silentStream()); if (call) voiceAttach(call); } catch (e) {} }); }
+function voiceAnswer(call) { (VOICE.ready || voiceInit()).then(() => { try { call.answer(VOICE.local || silentStream()); voiceAttach(call); } catch (e) {} }); }
+function voiceAttach(call) { VOICE.calls[call.peer] = call; call.on('stream', st => voicePlay(call.peer, st)); call.on('close', () => voiceUnplug(call.peer)); call.on('error', () => voiceUnplug(call.peer)); }
+function voicePlay(id, st) {
+  sfx.init(); const ctx = sfx.ctx; if (!ctx) return; voiceUnplug(id, true);
+  const el = new Audio(); el.muted = true; el.autoplay = true; el.playsInline = true; el.srcObject = st; el.play && el.play().catch(() => {});
+  const src = ctx.createMediaStreamSource(st), g = ctx.createGain(); g.gain.value = 1.6; src.connect(g); g.connect(ctx.destination); VOICE.nodes[id] = { src, g, el };
+}
+function voiceUnplug(id, keepCall) { const n = VOICE.nodes[id]; if (n) { try { n.src.disconnect(); n.g.disconnect(); n.el.srcObject = null; } catch (e) {} delete VOICE.nodes[id]; }
+  if (!keepCall) { const c = VOICE.calls[id]; if (c) { delete VOICE.calls[id]; try { c.close(); } catch (e) {} } } }
+function voiceStop() { for (const id of Object.keys(VOICE.nodes).concat(Object.keys(VOICE.calls))) voiceUnplug(id); if (VOICE.local) VOICE.local.getTracks().forEach(t => t.stop()); Object.assign(VOICE, { local: null, an: null, ready: null }); }
+function syncMic() { if (VOICE.local) VOICE.local.getAudioTracks().forEach(t => { t.enabled = !VOICE.muted; }); const t = VOICE.muted ? 'Mic off' : 'Mic on'; $('micBtn').textContent = t; $('hudMic').textContent = t; $('hudMic').classList.toggle('off', VOICE.muted); }
+function voiceFrame(dt) {
+  const b = game.net ? game[game.me] : game[game.active]; if (!b) return;
+  let lv = 0; if (VOICE.an && !VOICE.muted) { VOICE.an.getFloatTimeDomainData(VOICE.buf); let s = 0; for (const v of VOICE.buf) s += v * v; lv = clamp((Math.sqrt(s / VOICE.buf.length) - 0.012) * 9, 0, 1); }
+  b.mouth = lerp(b.mouth || 0, lv, Math.min(1, dt * 18));
+}
+
+/* ---------- menus ---------- */
+function toMenu() { game.mode = 'title'; $('hud').hidden = true; rotateHint(); showScreen('sTitle'); }
+$('hostBtn').addEventListener('click', () => { sfx.init(); netHost(); });
+$('joinBtn').addEventListener('click', () => { sfx.init(); netJoin($('codeIn').value); });
+$('codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') { sfx.init(); netJoin($('codeIn').value); } });
+$('practiceBtn').addEventListener('click', () => { sfx.init(); netReset(); startGame((Math.random() * 1e9) | 0, false); });
+$('startBtn').addEventListener('click', () => { if (!NET.host || !NET.conn) return; const seed = (Math.random() * 1e9) | 0; game.me = 'A'; netSend({ t: 'start', seed }); startGame(seed, true); });
+$('leaveBtn').addEventListener('click', () => { netSend({ t: 'bye' }); netReset(); toMenu(); lob(''); });
+$('micBtn').addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMic(); });
+$('hudMic').addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMic(); });
+$('hudExit').addEventListener('click', () => { if (game.net) { netSend({ t: 'bye' }); netReset(); } toMenu(); });
+$('againBtn').addEventListener('click', () => { if (game.net) { if (!NET.host) return; const seed = (Math.random() * 1e9) | 0; netSend({ t: 'start', seed }); startGame(seed, true); } else startGame((Math.random() * 1e9) | 0, false); });
+$('menuBtn').addEventListener('click', () => { if (game.net) { netSend({ t: 'bye' }); netReset(); } toMenu(); });
+if (/[?&]practice/.test(location.search)) { startGame(+((location.search.match(/seed=(\d+)/) || [])[1] || 7), false); const zq = location.search.match(/[?&]z=(\d+)/); if (zq) { const z = +zq[1]; game.A.p.copy(laneA(z)); game.B.p.copy(laneB(z)); game.band = makeBand(game.A.p, game.B.p); resetRopeDraw(game.A.p, game.B.p); } }
+frame();
+
+</script>
+<script src="../updated.js"></script>
+</body>
+</html>
