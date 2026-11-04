@@ -1429,10 +1429,10 @@ const CHORDS={calm:['D2','A2','F3','A3'],tense:['D2','A2','F3','C4'],death:['Bb2
 const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crowdLvl:0,
   init(){if(this.ctx)return;try{
     const C=window.AudioContext||window.webkitAudioContext,ctx=this.ctx=new C();
-    this.master=ctx.createGain();this.master.gain.value=.95;const comp=ctx.createDynamicsCompressor();comp.threshold.value=-16;comp.ratio.value=4;this.master.connect(comp);comp.connect(ctx.destination);
+    this.master=ctx.createGain();this.master.gain.value=1.35;const comp=ctx.createDynamicsCompressor();comp.threshold.value=-20;comp.ratio.value=3.5;comp.knee.value=12;this.master.connect(comp);comp.connect(ctx.destination);
     this.verb=ctx.createConvolver();this.verb.buffer=this.impulse(4.2,2.4);const wet=ctx.createGain();wet.gain.value=.55;this.verb.connect(wet);wet.connect(this.master);
     this.dry=ctx.createGain();this.dry.connect(this.master);
-    this.musicBus=ctx.createGain();this.musicBus.gain.value=.5;this.musicLP=ctx.createBiquadFilter();this.musicLP.type='lowpass';this.musicLP.frequency.value=16000;
+    this.musicBus=ctx.createGain();this.musicBus.gain.value=1.15;this.musicLP=ctx.createBiquadFilter();this.musicLP.type='lowpass';this.musicLP.frequency.value=16000;
     this.musicBus.connect(this.musicLP);this.musicLP.connect(this.master);const ms=ctx.createGain();ms.gain.value=.45;this.musicLP.connect(ms);ms.connect(this.verb);
     const len=ctx.sampleRate*2,b=ctx.createBuffer(1,len,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;this.noise=b;
     this.ambientBed();this.musicStart();
@@ -1456,17 +1456,17 @@ const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crow
     g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+(att||.006));g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(dst);o.start(t);o.stop(t+dur+.05);},
   // ---- one-shots ----
   crack(pos,str){if(!this.ok()||this.far(pos,70)||this.active>30)return;const t=this.ctx.currentTime;if(t-(this.lastCrack||0)<.05)return;this.lastCrack=t;
-    const v=clamp((str||10)/14,.5,1.2),o=this.out(pos,1,.5,.5).g;
+    const v=clamp((str||10)/14,.5,1.2),o=this.out(pos,1.6,.5,.5).g;
     this.nz(o,t,.018,'highpass',2600,.7,.9*v);this.nz(o,t+.004,.11,'bandpass',1100+Math.random()*500,.9,.75*v,.004);this.nz(o,t+.02,.07,'bandpass',2400,2,.35*v);
     this.tone(o,t,95,36,.26,'sine',1*v);this.nz(o,t,.14,'lowpass',260,.7,.6*v);},
-  thud(pos,vol){if(!this.ok()||this.far(pos,45)||this.active>30)return;const t=this.ctx.currentTime,o=this.out(pos,vol||.6,.35,.3).g;this.tone(o,t,120,42,.18,'sine',.9);this.nz(o,t,.09,'lowpass',420,.7,.5);},
-  step(){if(!this.ok())return;const t=this.ctx.currentTime,o=this.out(null,.22,.12,.2).g;this.nz(o,t,.035,'bandpass',1500+Math.random()*900,1.4,.5);this.tone(o,t,130,70,.06,'sine',.35);},
-  clank(pos,vol){if(!this.ok())return;const t=this.ctx.currentTime,o=this.out(pos,vol||1,.7,2).g;
+  thud(pos,vol){if(!this.ok()||this.far(pos,45)||this.active>30)return;const t=this.ctx.currentTime,o=this.out(pos,(vol||.6)*1.6,.35,.3).g;this.tone(o,t,120,42,.18,'sine',.9);this.nz(o,t,.09,'lowpass',420,.7,.5);},
+  step(){if(!this.ok())return;const t=this.ctx.currentTime,o=this.out(null,.6,.2,.2).g;this.nz(o,t,.035,'bandpass',1500+Math.random()*900,1.4,.5);this.tone(o,t,130,70,.06,'sine',.35);},
+  clank(pos,vol){if(!this.ok())return;const t=this.ctx.currentTime,o=this.out(pos,(vol||1)*1.4,.7,2).g;
     for(const [f,d,a] of [[196,1.6,.25],[497,1.2,.16],[1031,.8,.1],[1873,.5,.06]])this.tone(o,t,f,f*.995,d,'sine',a,.002);this.nz(o,t,.25,'bandpass',800,3,.5);this.tone(o,t,60,35,.5,'sine',.8);},
   drip(pos){if(!this.ok()||this.far(pos,50))return;const t=this.ctx.currentTime,f=1100+Math.random()*900,o=this.out(pos,.25,.7,.5).g;this.tone(o,t,f,f*1.9,.09,'sine',.6,.002);},
   creak(pos){if(!this.ok()||this.far(pos,60))return;const t=this.ctx.currentTime,o=this.out(pos,.18,.6,1.6).g;const s=this.ctx.createOscillator();s.type='sawtooth';s.frequency.setValueAtTime(70+Math.random()*30,t);s.frequency.linearRampToValueAtTime(45+Math.random()*20,t+1.2);
     const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=8;const g=this.ctx.createGain();g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(.5,t+.3);g.gain.linearRampToValueAtTime(.0001,t+1.3);s.connect(f);f.connect(g);g.connect(o);s.start(t);s.stop(t+1.4);},
-  scream(ch){if(!this.ok()||this.screams.length>=4||this.far(ch.joints[2],40))return;const ctx=this.ctx,t=ctx.currentTime,{g:o,pan}=this.out(ch.joints[2],.5,.55,3.2);
+  scream(ch){if(!this.ok()||this.screams.length>=4||this.far(ch.joints[2],40))return;const ctx=this.ctx,t=ctx.currentTime,{g:o,pan}=this.out(ch.joints[2],.8,.55,3.2);
     const f0=ch.isPlayer?220:FR(230,460),src=ctx.createOscillator();src.type='sawtooth';src.frequency.setValueAtTime(f0,t);src.frequency.linearRampToValueAtTime(f0*1.12,t+.25);src.frequency.exponentialRampToValueAtTime(f0*.6,t+2.8);
     const vib=ctx.createOscillator(),vg=ctx.createGain();vib.frequency.value=5.5+Math.random()*2;vg.gain.value=f0*.035;vib.connect(vg);vg.connect(src.frequency);
     const env=ctx.createGain();env.gain.setValueAtTime(.0001,t);env.gain.exponentialRampToValueAtTime(.5,t+.06);env.gain.setValueAtTime(.5,t+2.4);env.gain.exponentialRampToValueAtTime(.0001,t+2.9);
@@ -1486,7 +1486,7 @@ const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crow
   beep(){if(!this.ok())return;const t=this.ctx.currentTime;this.tone(this.out(null,.35,.5,.3).g,t,880,880,.14,'square',.25);},
   // ---- beds ----
   ambientBed(){const ctx=this.ctx;
-    const w=ctx.createBufferSource();w.buffer=this.noise;w.loop=true;const wf=ctx.createBiquadFilter();wf.type='lowpass';wf.frequency.value=320;const wg=ctx.createGain();wg.gain.value=.09;
+    const w=ctx.createBufferSource();w.buffer=this.noise;w.loop=true;const wf=ctx.createBiquadFilter();wf.type='lowpass';wf.frequency.value=320;const wg=ctx.createGain();wg.gain.value=.14;
     const lfo=ctx.createOscillator(),lg=ctx.createGain();lfo.frequency.value=.07;lg.gain.value=160;lfo.connect(lg);lg.connect(wf.frequency);lfo.start();w.connect(wf);wf.connect(wg);wg.connect(this.dry);w.start();
     const c=ctx.createBufferSource();c.buffer=this.noise;c.loop=true;const cf=ctx.createBiquadFilter();cf.type='bandpass';cf.frequency.value=520;cf.Q.value=1.4;const cg=ctx.createGain();cg.gain.value=0;
     const am=ctx.createOscillator(),ag=ctx.createGain();am.frequency.value=3.1;ag.gain.value=.25;am.connect(ag);const cg2=ctx.createGain();cg2.gain.value=.75;ag.connect(cg2.gain);
@@ -1502,7 +1502,7 @@ const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crow
   // ---- score ----
   musicStart(){const ctx=this.ctx,pad=ctx.createGain();pad.gain.value=0;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=380;lp.Q.value=.8;pad.connect(lp);lp.connect(this.musicBus);
     const lfo=ctx.createOscillator(),lg=ctx.createGain();lfo.frequency.value=.045;lg.gain.value=140;lfo.connect(lg);lg.connect(lp.frequency);lfo.start();
-    const vs=[];for(const n of CHORDS.calm)for(const d of [-7,7]){const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=NOTE[n];o.detune.value=d;const g=ctx.createGain();g.gain.value=.045;o.connect(g);g.connect(pad);o.start();vs.push(o);}
+    const vs=[];for(const n of CHORDS.calm)for(const d of [-7,7]){const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=NOTE[n];o.detune.value=d;const g=ctx.createGain();g.gain.value=.06;o.connect(g);g.connect(pad);o.start();vs.push(o);}
     this.mus={pad,lp,vs,chord:'calm',nextBell:ctx.currentTime+4,nextBeat:0,mode:'title'};this.setPad(.35,3);},
   setPad(v,sec){if(!this.mus)return;const t=this.ctx.currentTime,g=this.mus.pad.gain;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(v,t+(sec||2));},
   chord(name,sec){if(!this.mus||this.mus.chord===name)return;this.mus.chord=name;const t=this.ctx.currentTime,ns=CHORDS[name];
@@ -1530,8 +1530,8 @@ const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crow
     const m=this.mus;if(!m)return;
     const live=['play','map','respawn'].includes(game.state),left=game.time;
     if(live&&left<90)this.chord('tense',6);
-    if(live&&t>m.nextBell){const scale=[NOTE.D4,NOTE.F4,NOTE.G4,NOTE.A4,NOTE.C5,NOTE.D5];m.nextBell=t+(left<60?2.5:5)+Math.random()*(left<60?2:5);this.bell(fpick(scale),.09,5);}
-    if(live&&left<75&&t>m.nextBeat){const bpm=lerp(64,150,clamp(1-left/75,0,1));m.nextBeat=t+60/bpm;this.drum(.18+.25*clamp(1-left/75,0,1));}
+    if(live&&t>m.nextBell){const scale=[NOTE.D4,NOTE.F4,NOTE.G4,NOTE.A4,NOTE.C5,NOTE.D5];m.nextBell=t+(left<60?2.5:5)+Math.random()*(left<60?2:5);this.bell(fpick(scale),.16,5);}
+    if(live&&left<75&&t>m.nextBeat){const bpm=lerp(64,150,clamp(1-left/75,0,1));m.nextBeat=t+60/bpm;this.drum(.3+.35*clamp(1-left/75,0,1));}
     if(m.mode==='title'&&t>m.nextBell){m.nextBell=t+7+Math.random()*6;this.bell(fpick([NOTE.D4,NOTE.A4,NOTE.F4]),.06,6);}
   },
   setOn(v){this.on=v;if(this.master)this.master.gain.value=v?.95:0;if(!v)try{speechSynthesis.cancel();}catch(e){}}
@@ -1539,8 +1539,7 @@ const sfx={on:true,ctx:null,active:0,screams:[],doors:[],mus:null,nextAmb:0,crow
 let voices=[];try{voices=speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{voices=speechSynthesis.getVoices();};}catch(e){}
 let capT=0;
 function caption(t){$('caption').textContent=t;$('caption').classList.add('on');capT=4;}
-function say(text,cap){caption(cap||text);if(!sfx.on)return;sfx.chime();
-  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=.82;u.pitch=.12;u.volume=1;const v=pickVoice();if(v){u.voice=v;u.lang=v.lang;}speechSynthesis.speak(u);}catch(e){}}
+function say(text,cap){caption(cap||text);if(sfx.on)sfx.chime();}
 function pickVoice(){const en=voices.filter(v=>/^en/i.test(v.lang));
   for(const r of [/(natural|neural|premium|enhanced)/i,/google uk english male/i,/daniel/i,/google us english/i,/(serena|samantha|karen|moira|alex|aaron)/i]){const v=en.find(v=>r.test(v.name));if(v)return v;}
   return en.find(v=>v.localService)||en[0]||null;}
