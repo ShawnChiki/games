@@ -38,6 +38,8 @@ input.codein { font: 700 24px var(--body); width: 7ch; padding: 8px 12px; border
 .lives { display: flex; gap: 6px; background: var(--paper); border: 2.5px solid var(--ink); border-radius: 999px; padding: 6px 10px; box-shadow: 3px 3px 0 var(--ink); }
 .lives i { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--ink); background: var(--mag); }
 .lives i.gone { background: transparent; }
+.suns i { background: transparent; }
+#arrow { position: absolute; left: 0; top: 0; width: 0; height: 0; border-top: 14px solid transparent; border-bottom: 14px solid transparent; border-left: 26px solid var(--c, var(--yel)); filter: drop-shadow(2px 2px 0 var(--ink)); pointer-events: none; }
 .prog { flex: 1; max-width: 340px; height: 10px; border: 2.5px solid var(--ink); border-radius: 999px; background: var(--paper); overflow: hidden; position: relative; }
 .prog b { position: absolute; top: 0; bottom: 0; width: 10px; border-radius: 50%; }
 .prog b.a { background: var(--mag); } .prog b.b { background: var(--blue); }
@@ -69,7 +71,7 @@ input.codein { font: 700 24px var(--body); width: 7ch; padding: 8px 12px; border
 <div class="screen" id="sTitle">
   <div class="panel">
     <h1>R<span class="o">o</span>ped</h1>
-    <p>Two climbers, two gravities, one rope. Climb through the painting together. If your partner falls, only a grip on a fence or a line will hold them.</p>
+    <p>Two climbers, two gravities, one rope. Roam a floating painting together and find the five suns. If your partner falls, only a grip on a fence or a line will hold them.</p>
     <div class="row"><button class="btn hot" id="hostBtn">Host a game</button><button class="btn" id="practiceBtn">Practice alone</button></div>
     <div class="row"><input class="codein" id="codeIn" inputmode="numeric" maxlength="4" placeholder="1234" aria-label="Game code"><button class="btn" id="joinBtn">Join</button></div>
     <div class="status" id="lobStatus"></div>
@@ -103,10 +105,11 @@ input.codein { font: 700 24px var(--body); width: 7ch; padding: 8px 12px; border
 <div id="hud" hidden>
   <div class="hudtop">
     <div class="lives" id="lives" aria-label="Lives"></div>
-    <div class="prog" aria-hidden="true"><b class="a" id="progA"></b><b class="b" id="progB"></b></div>
+    <div class="lives suns" id="suns" aria-label="Suns found"></div>
     <div class="hudbtns"><button class="hb" id="hudMic" hidden>Mic</button><button class="hb" id="hudExit">Menu</button></div>
   </div>
   <div id="toast" class="hide"></div>
+  <div id="arrow" hidden></div>
   <div id="joy"><b></b></div>
   <div class="reel"><div class="pad" id="bIn">Reel<br>in</div><div class="pad" id="bOut">Pay<br>out</div></div>
   <div class="pads"><div class="pad" id="bJump">Jump</div><div class="pad" id="bGrab">Grab</div></div>
@@ -166,88 +169,94 @@ function nearest(col, p, out) {
 }
 const NR = { q: V(), n: V(), inside: false, t: 0 };
 
-/* ---------- procedural level: a floating Kandinsky composition along the route ---------- */
+/* ---------- procedural world: a floating Kandinsky volume to roam in any direction ---------- */
 function quatFromUp(up, spin) { const q = new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), up.clone().normalize()); if (spin) q.multiply(new THREE.Quaternion().setFromAxisAngle(V(0, 1, 0), spin)); return q; }
-function tilt(rng, up, deg) { const a = (rng() - 0.5) * 2 * deg * Math.PI / 180, b = (rng() - 0.5) * 2 * deg * Math.PI / 180; return up.clone().applyEuler(new THREE.Euler(a, 0, b)).normalize(); }
-function genLevel(seed) {
-  const rng = mulberry(seed), cols = [], decor = [], cps = [];
+function randQuat(rng) { const u1 = rng(), u2 = rng(), u3 = rng(); return new THREE.Quaternion(Math.sqrt(1 - u1) * Math.sin(2 * Math.PI * u2), Math.sqrt(1 - u1) * Math.cos(2 * Math.PI * u2), Math.sqrt(u1) * Math.sin(2 * Math.PI * u3), Math.sqrt(u1) * Math.cos(2 * Math.PI * u3)); }
+function nearlyAxis(rng, deg) { const r = deg * Math.PI / 180; return new THREE.Quaternion().setFromEuler(new THREE.Euler((rng() - .5) * 2 * r, (rng() - .5) * 2 * r, (rng() - .5) * 2 * r)); }
+const HASH = 4;
+function buildHash(cols) {
+  const h = new Map();
+  for (const c of cols) { const r = c.br;
+    for (let x = Math.floor((c.c.x - r) / HASH); x <= Math.floor((c.c.x + r) / HASH); x++) for (let y = Math.floor((c.c.y - r) / HASH); y <= Math.floor((c.c.y + r) / HASH); y++) for (let z = Math.floor((c.c.z - r) / HASH); z <= Math.floor((c.c.z + r) / HASH); z++) {
+      const k = x + ',' + y + ',' + z; let a = h.get(k); if (!a) h.set(k, a = []); a.push(c); } }
+  cols.hash = h; return h;
+}
+let qStamp = 0;
+function nearCols(cols, p, pad) {
+  const out = [];
+  if (!cols.hash) { for (const c of cols) if (p.distanceToSquared(c.c) < (c.br + pad) * (c.br + pad)) out.push(c); return out; }
+  const st = ++qStamp;
+  for (let x = Math.floor((p.x - pad) / HASH); x <= Math.floor((p.x + pad) / HASH); x++) for (let y = Math.floor((p.y - pad) / HASH); y <= Math.floor((p.y + pad) / HASH); y++) for (let z = Math.floor((p.z - pad) / HASH); z <= Math.floor((p.z + pad) / HASH); z++) {
+    const a = cols.hash.get(x + ',' + y + ',' + z); if (!a) continue;
+    for (const c of a) { if (c._q === st) continue; c._q = st; if (p.distanceToSquared(c.c) < (c.br + pad) * (c.br + pad)) out.push(c); } }
+  return out;
+}
+const WORLD_R = 26, ORBS = 5;
+function genWorld(seed) {
+  const rng = mulberry(seed), cols = [], decor = [], orbs = [];
   const pick = () => PAL[Math.floor(rng() * PAL.length)];
-  const L = { cols, decor, cps, seed };
-  const shared = (z0, len, color) => { // one block: its top is A's floor, its right face is B's floor
-    const zc = z0 + len / 2, s = spine(zc);
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (rng() - 0.5) * 0.12, (rng() - 0.5) * 0.1));
-    cols.push(mkBox(V(s.x + 0.35, s.y - 1.55, zc), q, V(1.45, 1.15, len / 2), 'block', color || pick(), { tex: Math.floor(rng() * 6) }));
+  const W = { cols, decor, orbs, seed, spawns: [] };
+  const free = (p, d) => { for (const c of cols) if (p.distanceTo(c.c) < c.br * 0.7 + d) return false; return true; };
+  // a hub: a near-square block whose top is a floor for A and whose +X face is a floor for B
+  const hub = (p, big, color) => {
+    const h = big ? V(1.6, 1.1, 2.2) : V(0.7 + rng() * 0.7, 0.35 + rng() * 0.6, 0.7 + rng() * 0.7);
+    cols.push(mkBox(p.clone(), big ? new THREE.Quaternion() : nearlyAxis(rng, 13), h, 'block', color || pick(), { tex: Math.floor(rng() * 3), hub: true }));
+    return h;
   };
-  const sepA = (zc) => { const s = laneA(zc), r = 0.9 + rng() * 0.6; const up = tilt(rng, V(0, 1, 0), 16);
-    if (rng() < 0.55) cols.push(mkCyl(V(s.x + (rng() - 0.5) * 0.8, s.y - 0.4 - 0.2, zc), quatFromUp(up), r, 0.2, 'block', pick()));
-    else cols.push(mkBox(V(s.x + (rng() - 0.5) * 0.6, s.y - 0.4 - 0.18, zc), quatFromUp(up, rng() * 3), V(r * 0.9, 0.18, r * 0.75), 'block', pick(), { tex: Math.floor(rng() * 6) })); };
-  const sepB = (zc) => { const s = laneB(zc), r = 0.85 + rng() * 0.55; const up = tilt(rng, V(1, 0, 0), 16);
-    if (rng() < 0.55) cols.push(mkCyl(V(s.x - 0.4 - 0.2, s.y + (rng() - 0.5) * 0.8, zc), quatFromUp(up), r, 0.2, 'block', pick()));
-    else cols.push(mkBox(V(s.x - 0.4 - 0.18, s.y + (rng() - 0.5) * 0.6, zc), quatFromUp(up, rng() * 3), V(r * 0.75, 0.18, r * 0.9), 'block', pick(), { tex: Math.floor(rng() * 6) })); };
-  const ramp = (z0, len) => { // a 45° slab both can stand on
-    const zc = z0 + len / 2, n = V(1, 1, 0).normalize(), a = laneA(zc), b = laneB(zc);
-    const d = Math.min(n.dot(a), n.dot(b)) - R, m = a.clone().add(b).multiplyScalar(0.5);
-    const c = m.clone().addScaledVector(n, -(n.dot(m) - d)).addScaledVector(n, -0.16);
-    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(1, -1, 0).normalize(), n, V(0, 0, 1)));
-    cols.push(mkBox(c, q, V(2.6, 0.16, len / 2), 'block', pick(), { tex: Math.floor(rng() * 6) }));
-  };
-  const gridSheet = (z0, len) => { // a tilted chain-link sheet across both lanes: climb it
-    const zc = z0 + len / 2, a = laneA(zc), b = laneB(zc), along = b.clone().sub(a).normalize(), n = V(-along.y, along.x, 0).normalize();
-    const flip = rng() < 0.5 ? 1 : -1, c = a.clone().add(b).multiplyScalar(0.5).addScaledVector(n, flip * 0.45);
-    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n, V(0, 0, 1)));
-    cols.push(mkBox(c, q, V(2.7, 0.03, len / 2), 'grid', pick()));
-  };
-  const glossGap = (z0, len) => {
-    const zc = z0 + len / 2, a = laneA(zc), b = laneB(zc);
-    cols.push(mkSphere(V(a.x - 0.2, a.y - 1.7, zc), 1.35, 'gloss', pick()));
-    cols.push(mkSphere(V(b.x - 1.9, b.y + 0.3, zc + 0.6), 1.1, 'gloss', pick()));
-    cols.push(mkPole(V(a.x + 0.9, a.y + 1.3, z0 - 0.6), V(a.x + 1.2, a.y + 0.9, z0 + len + 0.6), 0.09, pick()));
-  };
-  const poles = (z0, len) => {
-    const a = laneA(z0), a2 = laneA(z0 + len), b = laneB(z0), b2 = laneB(z0 + len);
-    cols.push(mkPole(V(a.x - 0.3, a.y + 0.55, z0 - 0.5), V(a2.x + 0.4, a2.y + 0.35, z0 + len + 0.5), 0.09, pick()));
-    cols.push(mkPole(V(b.x + 0.55, b.y + 0.3, z0 - 0.5), V(b2.x + 0.35, b2.y - 0.4, z0 + len + 0.5), 0.09, pick()));
-  };
-  // build
-  let z = -4; shared(z, 8, '#ffd21f'); cps.push({ z: 0 }); z += 8;
-  const goalZ = 104; let nextCp = 26;
-  while (z < goalZ - 6) {
-    const k = clamp(z / goalZ, 0, 1), gap = 0.5 + rng() * (0.6 + k * 0.9);
-    z += gap;
-    if (z >= nextCp) { shared(z, 4); cps.push({ z: z + 2 }); z += 4; nextCp += 26; continue; }
-    const r = rng();
-    if (r < 0.24) { const len = 2 + rng() * 2.5; shared(z, len); z += len; }
-    else if (r < 0.5) { const len = 2.2 + rng() * 1.2; sepA(z + len / 2 + (rng() - 0.5) * 0.6); sepB(z + len / 2 + (rng() - 0.5) * 0.6); if (rng() < 0.3) { sepA(z + len + 1.2); z += 1.2; } z += len; }
-    else if (r < 0.62) { const len = 2.5 + rng() * 2; ramp(z, len); z += len; }
-    else if (r < 0.76) { const len = 3.5 + rng() * 2; gridSheet(z, len); z += len; }
-    else if (r < 0.88) { const len = 3.4; glossGap(z, len); z += len; }
-    else { const len = 3.5 + rng() * 1.5; poles(z, len); z += len; }
+  // start
+  hub(V(0.35, -1.55, 0), true, '#ffd21f');
+  W.spawns.push({ A: V(0, 0, 0), B: V(2.2, -1.5, 0) });
+  // suns to find, spread through the volume
+  const dirs = [];
+  while (orbs.length < ORBS) {
+    const d = V(rng() - 0.5, (rng() - 0.5) * 1.3, rng() - 0.5).normalize(), dist = 15 + rng() * 11, p = d.clone().multiplyScalar(dist);
+    if (orbs.some(o => o.p.distanceTo(p) < 13)) continue;
+    const hp = p.clone().add(V(0.35, -1.55, 0)); hub(hp, true, PAL[(orbs.length * 3 + 2) % PAL.length]);
+    orbs.push({ p: p.clone().add(V(1.1, 1.3, 0)), got: false, color: PAL[(orbs.length * 3 + 1) % PAL.length] });
+    W.spawns.push({ A: p.clone(), B: p.clone().add(V(2.2, -1.5, 0)) });
   }
-  z += 0.8; shared(z, 7, '#ffd21f'); L.goalZ = z + 3.5;
-  // repair pass: wherever a lane has nothing to stand on or grab for more than a jump, drop in a stepping stone
-  const support = (role, z) => {
-    const up = ROLES[role].up, p0 = (role === 'A' ? laneA(z) : laneB(z)).addScaledVector(up, 0.6), near = cols.filter(c => Math.abs(c.c.z - z) < c.br + 1);
-    const out = { q: V(), n: V() };
-    for (let d = 0; d < 2.8; d += 0.15) { const p = p0.clone().addScaledVector(up, -d);
-      for (const c of near) { nearest(c, p, out); const dist = p.distanceTo(out.q);
-        if ((c.mat === 'block' && dist < 0.45 && out.n.dot(up) > 0.6) || ((c.mat === 'grid' || c.mat === 'pole') && dist < 1.0)) return true; } }
-    return false;
-  };
-  for (const role of ['A', 'B']) {
-    let start = null;
-    for (let zz = 0; zz < L.goalZ; zz += 0.25) {
-      if (support(role, zz)) { if (start !== null && zz - start > 2.4) { const n = Math.ceil((zz - start) / 2.2); for (let i = 1; i < n; i++) { const zc = start + (zz - start) * i / n; role === 'A' ? sepA(zc) : sepB(zc); } } start = null; }
-      else if (start === null) start = zz;
+  // stepping chains: start to every sun, plus a few sun-to-sun links, so every sun can be reached
+  const chain = (a, b) => {
+    const d = b.clone().sub(a), L = d.length(), n = Math.max(2, Math.round(L / 2.4)); let prev = a.clone();
+    for (let i = 1; i < n; i++) {
+      const p = a.clone().addScaledVector(d, i / n).add(V((rng() - .5) * 1.2, (rng() - .5) * 0.8, (rng() - .5) * 1.2));
+      if (!free(p, 1.0)) { prev = p; continue; }
+      hub(p);
+      const step = p.clone().sub(prev);
+      if (Math.abs(step.y) > 1.15 || Math.abs(step.x) > 1.15 || rng() < 0.18) { // too tall to hop: hang a fence to climb
+        const along = step.clone().normalize(), side = Math.abs(along.z) < 0.9 ? V(0, 0, 1) : V(1, 0, 0);
+        const w = side.clone().addScaledVector(along, -side.dot(along)).normalize(), n2 = V().crossVectors(along, w).normalize();
+        const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, n2, w));
+        const c = prev.clone().add(p).multiplyScalar(0.5).addScaledVector(n2, 1.3 * (rng() < 0.5 ? 1 : -1));
+        cols.push(mkBox(c, q, V(step.length() / 2 + 0.8, 0.03, 1.2), 'grid', pick()));
+      }
+      prev = p;
     }
-  }
-  // Kandinsky decor that floats around the route (not solid)
-  for (let dz = -10; dz < L.goalZ + 14; dz += 0.9) {
-    const s = spine(dz), ang = rng() * Math.PI * 2, dist = 3.6 + rng() * 10;
-    const p = V(s.x + 1.1 + Math.cos(ang) * dist, s.y - 0.7 + Math.sin(ang) * dist, dz + rng());
+  };
+  const starts = [V(0.35, -1.55, 0)].concat(orbs.map(o => o.p.clone().sub(V(0.75, 2.85, 0))));
+  for (let i = 1; i < starts.length; i++) chain(starts[0], starts[i]);
+  for (let i = 1; i < starts.length; i++) if (rng() < 0.6) chain(starts[i], starts[1 + ((i + Math.floor(rng() * 3)) % ORBS)]);
+  // fill the volume with the rest of the painting
+  let tries = 0;
+  while (cols.length < 360 && tries++ < 6000) {
+    const p = V((rng() - .5) * 2, (rng() - .5) * 2, (rng() - .5) * 2).multiplyScalar(WORLD_R); if (p.length() > WORLD_R) continue;
+    if (!free(p, 1.2) || p.length() < 4) continue;
     const t = rng();
-    decor.push({ kind: t < 0.3 ? 'rings' : t < 0.48 ? 'tri' : t < 0.62 ? 'line' : t < 0.76 ? 'checker' : t < 0.9 ? 'disc' : 'arc', p, rot: [rng() * 6, rng() * 6, rng() * 6], s: 0.5 + rng() * 1.8, color: pick(), color2: pick() });
+    if (t < 0.34) cols.push(mkBox(p, randQuat(rng), V(0.6 + rng() * 1.4, 0.2 + rng() * 0.7, 0.6 + rng() * 1.4), 'block', pick(), { tex: Math.floor(rng() * 3) }));
+    else if (t < 0.52) { const ups = [V(0, 1, 0), V(1, 0, 0), V(1, 1, 0)]; cols.push(mkCyl(p, quatFromUp(ups[Math.floor(rng() * 3)].applyEuler(new THREE.Euler((rng() - .5) * .5, 0, (rng() - .5) * .5)), rng() * 6), 0.9 + rng() * 1.1, 0.18 + rng() * 0.2, 'block', pick())); }
+    else if (t < 0.64) cols.push(mkSphere(p, 0.7 + rng() * 1.4, 'gloss', pick()));
+    else if (t < 0.8) cols.push(mkBox(p, randQuat(rng), V(1.2 + rng() * 1.6, 0.03, 1 + rng() * 1.4), 'grid', pick()));
+    else if (t < 0.92) { const d = V(rng() - .5, rng() - .5, rng() - .5).normalize().multiplyScalar(2 + rng() * 3); cols.push(mkPole(p.clone().sub(d), p.clone().add(d), 0.09, pick())); }
+    else cols.push(mkBox(p, randQuat(rng), V(1.2 + rng() * 1.2, 0.12, 1.2 + rng() * 1.2), 'gloss', pick()));
   }
-  return L;
+  // flat painted marks floating in the gaps (not solid)
+  for (let i = 0; i < 140; i++) {
+    const p = V((rng() - .5) * 2, (rng() - .5) * 2, (rng() - .5) * 2).multiplyScalar(WORLD_R + 8); if (!free(p, 1.2)) continue;
+    const t = rng();
+    decor.push({ kind: t < 0.3 ? 'rings' : t < 0.48 ? 'tri' : t < 0.64 ? 'line' : t < 0.76 ? 'checker' : t < 0.9 ? 'disc' : 'arc', p, rot: [rng() * 6, rng() * 6, rng() * 6], s: 0.5 + rng() * 1.8, color: pick(), color2: pick() });
+  }
+  buildHash(cols);
+  return W;
 }
 
 /* ---------- rope: the taut route between two points, wrapped around solids ---------- */
@@ -262,8 +271,9 @@ function pushOut(p, cols, r) {
     else if (p.distanceToSquared(NR.q) < r * r) p.copy(NR.q).addScaledVector(NR.n, r);
   }
 }
-function stepBand(band, a, b, cols) {
+function stepBand(band, a, b, allCols) {
   band[0].copy(a); band[NB - 1].copy(b);
+  const cols = nearCols(allCols, a.clone().add(b).multiplyScalar(0.5), a.distanceTo(b) / 2 + 3);
   const m = V();
   for (let it = 0; it < 4; it++) for (let i = 1; i < NB - 1; i++) {
     m.copy(band[i - 1]).add(band[i + 1]).multiplyScalar(0.5);
@@ -284,7 +294,6 @@ function camBasis(b) { // forward and right in the climber's floor plane, from i
   const r = V().crossVectors(f, b.up).normalize();
   return { f, r };
 }
-function nearCols(cols, p, pad) { const out = []; for (const c of cols) if (Math.abs(p.z - c.c.z) < c.br + pad && p.distanceToSquared(c.c) < (c.br + pad) * (c.br + pad)) out.push(c); return out; }
 const WALK = 3.6, JUMP = 6.0, CLIMB = 2.1;
 // one physics step for a locally controlled climber
 function stepBody(b, dt, cols, events) {
@@ -360,7 +369,7 @@ function ropeStep(b, partner, L, len, band, dt, share, events) {
   b.p.addScaledVector(dir, k);
   const away = -b.v.dot(dir); if (away > 0) b.v.addScaledVector(dir, away);
 }
-if (false) module.exports = { genLevel, makeBody, stepBody, ropeStep, stepBand, makeBand, laneA, laneB, spine, nearest, NB, R, G };
+if (false) module.exports = { genWorld, makeBody, stepBody, ropeStep, stepBand, makeBand, laneA, laneB, spine, nearest, NB, R, G };
 
 /* ================= Roped: the painting (materials, level meshes, climbers, hair, rope) ================= */
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -377,8 +386,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
 const scene = new THREE.Scene();
 const CREAM = new THREE.Color('#f2e8d2');
-scene.background = CREAM; scene.fog = new THREE.Fog(CREAM, 14, 46);
-const camera = new THREE.PerspectiveCamera(74, 1, 0.08, 160);
+scene.background = CREAM; scene.fog = new THREE.Fog(CREAM, 10, 38);
+const camera = new THREE.PerspectiveCamera(74, 1, 0.08, 90);
 scene.add(new THREE.HemisphereLight(0xfff6e4, 0xc9b896, 0.78));
 const sun = new THREE.DirectionalLight(0xffffff, 0.5); sun.position.set(-5, 9, -6); scene.add(sun);
 const gradTex = (() => { const d = new Uint8Array([125, 125, 125, 255, 205, 205, 205, 255, 255, 255, 255, 255]); const t = new THREE.DataTexture(d, 3, 1, THREE.RGBAFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
@@ -392,17 +401,17 @@ const toon = (opts) => new THREE.MeshToonMaterial(Object.assign({ gradientMap: g
 const texCache = {};
 function kTex(color, key) {
   const id = color + key; if (texCache[id]) return texCache[id];
-  const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
   x.fillStyle = color; x.fillRect(0, 0, S, S); srandS = 7 + key * 131 + color.charCodeAt(2);
   const pick = () => PAL[Math.floor(srand() * PAL.length)];
   for (let m = 0; m < 4 + key % 3; m++) {
     const t = srand(), cx = srand() * S, cy = srand() * S;
-    if (t < 0.32) { let r = 40 + srand() * 100; while (r > 8) { x.fillStyle = pick(); x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); r -= 12 + srand() * 18; } }
-    else if (t < 0.56) { x.strokeStyle = '#161412'; x.lineWidth = 3 + srand() * 7; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + (srand() - .5) * 600, cy + (srand() - .5) * 600); x.stroke(); }
-    else if (t < 0.76) { x.fillStyle = pick(); x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + 60 + srand() * 90, cy + 20 - srand() * 120); x.lineTo(cx + srand() * 50, cy + 70 + srand() * 60); x.closePath(); x.fill(); }
-    else { const s = 14 + srand() * 14; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#161412' : pick(); x.fillRect(cx + i * s, cy + j * s, s, s); } }
+    if (t < 0.32) { let r = 20 + srand() * 50; while (r > 4) { x.fillStyle = pick(); x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); r -= 6 + srand() * 9; } }
+    else if (t < 0.56) { x.strokeStyle = '#161412'; x.lineWidth = 2 + srand() * 4; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + (srand() - .5) * 300, cy + (srand() - .5) * 300); x.stroke(); }
+    else if (t < 0.76) { x.fillStyle = pick(); x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + 30 + srand() * 45, cy + 10 - srand() * 60); x.lineTo(cx + srand() * 25, cy + 35 + srand() * 30); x.closePath(); x.fill(); }
+    else { const s = 7 + srand() * 7; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { x.fillStyle = (i + j) % 2 ? '#161412' : pick(); x.fillRect(cx + i * s, cy + j * s, s, s); } }
   }
-  x.globalCompositeOperation = 'multiply'; x.drawImage(noiseCanvas(256, 200, 255, 40), 0, 0, S, S);
+  x.globalCompositeOperation = 'multiply'; x.drawImage(noiseCanvas(128, 200, 255, 20), 0, 0, S, S);
   const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 4;
   return (texCache[id] = tex);
 }
@@ -422,67 +431,97 @@ function stripes(color) {
 
 /* ---------- level meshes ---------- */
 const levelGroup = new THREE.Group(); scene.add(levelGroup);
-const cpMarks = [];
+
+// shared materials, so the whole painting can be merged into a few big meshes
+const matCache = {};
+const mat = (key, make) => matCache[key] || (matCache[key] = make());
+const linkMat = () => mat('link', () => new THREE.MeshBasicMaterial({ map: chainLink(), transparent: true, alphaTest: 0.45, side: THREE.DoubleSide }));
+const scaleUV = (g, su, sv) => { const U = g.attributes.uv; for (let k = 0; k < U.count; k++) U.setXY(k, U.getX(k) * su, U.getY(k) * sv); return g; };
 function colMesh(c) {
   let m;
   if (c.kind === 'box' && c.mat === 'grid') {
     const g = new THREE.Group(); const w = c.h.x * 2, d = c.h.z * 2;
-    const t = chainLink().clone(); t.needsUpdate = true; t.repeat.set(w / 0.34, d / 0.34);
-    const pl = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.45, side: THREE.DoubleSide }));
+    const pl = new THREE.Mesh(scaleUV(new THREE.PlaneGeometry(w, d), w / 0.34, d / 0.34), linkMat());
     pl.rotation.x = -Math.PI / 2; g.add(pl);
-    const fm = toon({ color: c.color });
-    const bar = (len, x, z, alongX) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, len, 10), fm); b.position.set(x, 0, z); b.rotation.set(alongX ? 0 : Math.PI / 2, 0, alongX ? Math.PI / 2 : 0); b.add(new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, len + 0.03, 10), INK)); g.add(b); };
+    const fm = mat('frame' + c.color, () => toon({ color: c.color }));
+    const bar = (len, x, z, alongX) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, len, 8, 1, true), fm); b.position.set(x, 0, z); b.rotation.set(alongX ? 0 : Math.PI / 2, 0, alongX ? Math.PI / 2 : 0); b.add(new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, len + 0.03, 8, 1, true), INK)); g.add(b); };
     bar(w + 0.12, 0, d / 2, true); bar(w + 0.12, 0, -d / 2, true); bar(d, w / 2, 0, false); bar(d, -w / 2, 0, false);
     m = g;
   } else if (c.kind === 'box') {
     const geo = new THREE.BoxGeometry(c.h.x * 2, c.h.y * 2, c.h.z * 2);
     const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv;
     for (let k = 0; k < P.count; k++) { const ax = Math.abs(N.getX(k)) > .5 ? 0 : Math.abs(N.getY(k)) > .5 ? 1 : 2; const v = [P.getX(k), P.getY(k), P.getZ(k)]; const [a, b] = ax === 0 ? [2, 1] : ax === 1 ? [0, 2] : [0, 1]; U.setXY(k, v[a] / 3.6, v[b] / 3.6); }
-    m = new THREE.Mesh(geo, c.mat === 'gloss' ? new THREE.MeshPhongMaterial({ color: c.color, shininess: 140, specular: 0xffffff, map: grainTex }) : toon({ color: 0xffffff, map: kTex(c.color, c.tex || 0) }));
+    m = new THREE.Mesh(geo, c.mat === 'gloss' ? mat('gloss' + c.color, () => new THREE.MeshPhongMaterial({ color: c.color, shininess: 140, specular: 0xffffff, map: grainTex })) : mat('k' + c.color + (c.tex || 0), () => toon({ color: 0xffffff, map: kTex(c.color, c.tex || 0) })));
     m.add(new THREE.Mesh(new THREE.BoxGeometry(c.h.x * 2 + 0.07, c.h.y * 2 + 0.07, c.h.z * 2 + 0.07), INK));
   } else if (c.kind === 'cyl') {
-    m = new THREE.Mesh(new THREE.CylinderGeometry(c.r, c.r, c.hh * 2, 40), toon({ color: 0xffffff, map: kTex(c.color, 3) }));
-    m.add(new THREE.Mesh(new THREE.CylinderGeometry(c.r + 0.035, c.r + 0.035, c.hh * 2 + 0.07, 40), INK));
+    m = new THREE.Mesh(new THREE.CylinderGeometry(c.r, c.r, c.hh * 2, 32), mat('k' + c.color + 'c', () => toon({ color: 0xffffff, map: kTex(c.color, 2) })));
+    m.add(new THREE.Mesh(new THREE.CylinderGeometry(c.r + 0.035, c.r + 0.035, c.hh * 2 + 0.07, 32), INK));
   } else if (c.kind === 'sphere') {
-    m = new THREE.Mesh(new THREE.SphereGeometry(c.r, 40, 28), new THREE.MeshPhongMaterial({ color: c.color, shininess: 170, specular: 0xffffff, map: grainTex }));
-    m.add(new THREE.Mesh(new THREE.SphereGeometry(c.r + 0.04, 40, 28), INK));
+    m = new THREE.Mesh(new THREE.SphereGeometry(c.r, 28, 18), mat('gloss' + c.color, () => new THREE.MeshPhongMaterial({ color: c.color, shininess: 170, specular: 0xffffff, map: grainTex })));
+    m.add(new THREE.Mesh(new THREE.SphereGeometry(c.r + 0.04, 28, 18), INK));
   } else if (c.kind === 'pole') {
-    const len = c.a.distanceTo(c.b), t = stripes(c.color); t.repeat.set(1, len / 1.4);
-    m = new THREE.Mesh(new THREE.CylinderGeometry(c.r, c.r, len, 12), toon({ color: 0xffffff, map: t }));
-    m.add(new THREE.Mesh(new THREE.CylinderGeometry(c.r + 0.035, c.r + 0.035, len + 0.04, 12), INK));
+    const len = c.a.distanceTo(c.b);
+    m = new THREE.Mesh(scaleUV(new THREE.CylinderGeometry(c.r, c.r, len, 10), 1, len / 1.4), mat('pole' + c.color, () => { const t = stripes(c.color); return toon({ color: 0xffffff, map: t }); }));
+    m.add(new THREE.Mesh(new THREE.CylinderGeometry(c.r + 0.035, c.r + 0.035, len + 0.04, 10), INK));
     m.position.copy(c.c); m.quaternion.setFromUnitVectors(V(0, 1, 0), c.b.clone().sub(c.a).normalize()); return m;
   }
   m.position.copy(c.c); if (c.q) m.quaternion.copy(c.q); return m;
 }
+const flat = col => mat('flat' + col, () => new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
 function decorMesh(d) {
   let m; const col = d.color;
-  if (d.kind === 'rings') { m = new THREE.Group(); let r = d.s * 1.4, i = 0; while (r > 0.15) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 48), new THREE.MeshBasicMaterial({ color: i % 2 ? d.color2 : PAL[(i * 3 + 1) % PAL.length], side: THREE.DoubleSide })); ring.position.z = i * 0.004; m.add(ring); r -= 0.18 + d.s * 0.12; i++; } }
-  else if (d.kind === 'tri') { const s = new THREE.Shape(); const a = d.s * 1.6; s.moveTo(0, a); s.lineTo(a * 0.9, -a * 0.6); s.lineTo(-a * 0.8, -a * 0.5); m = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); }
+  if (d.kind === 'rings') { m = new THREE.Group(); let r = d.s * 1.4, i = 0; while (r > 0.15) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 36), flat(i % 2 ? d.color2 : PAL[(i * 3 + 1) % PAL.length])); ring.position.z = i * 0.004; m.add(ring); r -= 0.18 + d.s * 0.12; i++; } }
+  else if (d.kind === 'tri') { const s = new THREE.Shape(); const a = d.s * 1.6; s.moveTo(0, a); s.lineTo(a * 0.9, -a * 0.6); s.lineTo(-a * 0.8, -a * 0.5); m = new THREE.Mesh(new THREE.ShapeGeometry(s), flat(col)); }
   else if (d.kind === 'line') { m = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, d.s * 5, 6), INK_F); }
-  else if (d.kind === 'checker') { m = new THREE.Mesh(new THREE.PlaneGeometry(d.s * 1.4, d.s * 1.4), new THREE.MeshBasicMaterial({ map: kTex(col, 5), side: THREE.DoubleSide })); }
-  else if (d.kind === 'arc') { m = new THREE.Mesh(new THREE.TorusGeometry(d.s, 0.05 + d.s * 0.04, 8, 40, Math.PI * (0.6 + d.s * 0.3)), new THREE.MeshBasicMaterial({ color: col })); }
-  else { m = new THREE.Mesh(new THREE.CircleGeometry(d.s * 0.8, 40), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); }
-  m.position.copy(d.p); m.rotation.set(...d.rot); m.userData.spin = (Math.random() - 0.5) * 0.12; return m;
+  else if (d.kind === 'checker') { m = new THREE.Mesh(new THREE.PlaneGeometry(d.s * 1.4, d.s * 1.4), mat('chk' + col, () => new THREE.MeshBasicMaterial({ map: kTex(col, 1), side: THREE.DoubleSide }))); }
+  else if (d.kind === 'arc') { m = new THREE.Mesh(new THREE.TorusGeometry(d.s, 0.05 + d.s * 0.04, 6, 32, Math.PI * (0.6 + d.s * 0.3)), flat(col)); }
+  else { m = new THREE.Mesh(new THREE.CircleGeometry(d.s * 0.8, 32), flat(col)); }
+  m.position.copy(d.p); m.rotation.set(...d.rot); return m;
+}
+// bake many meshes into one per material (a few dozen draw calls instead of a thousand)
+function mergeByMaterial(root) {
+  root.updateMatrixWorld(true);
+  const groups = new Map();
+  root.traverse(o => { if (!o.isMesh) return; const g = o.geometry.index ? o.geometry : (() => { const n = o.geometry; n.setIndex([...Array(n.attributes.position.count).keys()]); return n; })();
+    let L = groups.get(o.material); if (!L) groups.set(o.material, L = []); L.push([g, o.matrixWorld.clone()]); });
+  const out = [], nm = new THREE.Matrix3();
+  for (const [material, list] of groups) {
+    let nv = 0, ni = 0; for (const [g] of list) { nv += g.attributes.position.count; ni += g.index.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), idx = new Uint32Array(ni);
+    let ov = 0, oi = 0; const v = V();
+    for (const [g, M] of list) {
+      nm.getNormalMatrix(M); const P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, I = g.index;
+      for (let k = 0; k < P.count; k++) { v.fromBufferAttribute(P, k).applyMatrix4(M); pos.set([v.x, v.y, v.z], (ov + k) * 3); v.fromBufferAttribute(N, k).applyMatrix3(nm).normalize(); nor.set([v.x, v.y, v.z], (ov + k) * 3); if (U) uv.set([U.getX(k), U.getY(k)], (ov + k) * 2); }
+      for (let k = 0; k < I.count; k++) idx[oi + k] = I.getX(k) + ov;
+      ov += P.count; oi += I.count; g.dispose();
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    geo.computeBoundingSphere(); out.push(new THREE.Mesh(geo, material));
+  }
+  return out;
 }
 function buildLevelMeshes(L) {
   while (levelGroup.children.length) { const o = levelGroup.children.pop(); o.traverse(n => { if (n.geometry) n.geometry.dispose(); }); }
-  cpMarks.length = 0;
-  for (const c of L.cols) levelGroup.add(colMesh(c));
-  for (const d of L.decor) levelGroup.add(decorMesh(d));
-  L.cps.forEach((cp, i) => { if (!i) return; const s = spine(cp.z); const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.09, 10, 64), new THREE.MeshBasicMaterial({ color: 0x161412 })); ring.position.set(s.x + 1.1, s.y - 0.7, cp.z); levelGroup.add(ring); cpMarks.push(ring); });
-  // the goal: a big sun of rings ahead of the last platform
-  const s = spine(L.goalZ + 5), g = new THREE.Group(); let r = 4.2, i = 0;
-  while (r > 0.3) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 64), new THREE.MeshBasicMaterial({ color: ['#ffd21f', '#ff7a00', '#e8202a', '#e3218e', '#1c4fe0', '#161412'][i % 6], side: THREE.DoubleSide, fog: false })); ring.position.z = -i * 0.01; g.add(ring); r -= 0.7; i++; }
-  g.position.set(s.x + 1.1, s.y + 0.6, L.goalZ + 7); levelGroup.add(g);
+  const tmp = new THREE.Group();
+  for (const c of L.cols) tmp.add(colMesh(c));
+  for (const d of L.decor) tmp.add(decorMesh(d));
+  for (const m of mergeByMaterial(tmp)) levelGroup.add(m);
+  // the suns to find: rings of colour that always face you and glow through the fog
+  orbMeshes.length = 0;
+  L.orbs.forEach((o, k) => { const g = new THREE.Group(); let r = 1.1, i = 0; const cols = [o.color, '#ffd21f', '#161412', '#ff7a00', '#e3218e', '#fffaf0'];
+    while (r > 0.12) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 40), new THREE.MeshBasicMaterial({ color: cols[i % cols.length], fog: false, transparent: true, depthWrite: i === 0 })); ring.position.z = i * 0.012; g.add(ring); r -= 0.19; i++; }
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: fogBlob, color: new THREE.Color(o.color), transparent: true, opacity: 0.6, depthWrite: false, depthTest: false, fog: false })); halo.renderOrder = 5; halo.scale.setScalar(5); g.add(halo);
+    g.position.copy(o.p); levelGroup.add(g); orbMeshes.push(g); });
 }
+const orbMeshes = [];
 
 /* ---------- floating background for depth ---------- */
 const bg = new THREE.Group(); scene.add(bg);
 const fogBlob = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); const g = x.createRadialGradient(64, 64, 6, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
 function buildBackground() {
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 40; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: fogBlob, color: new THREE.Color(PAL[i % PAL.length]).lerp(CREAM, 0.6), transparent: true, opacity: 0.5, depthWrite: false }));
-    m.scale.setScalar(rnd(5, 12)); m.userData.off = V(rnd(-16, 16), rnd(-12, 12), rnd(-6, 40)); m.userData.drift = rnd(0.1, 0.4); bg.add(m);
+    m.scale.setScalar(rnd(6, 14)); m.position.set(rnd(-45, 45), rnd(-45, 45), rnd(-45, 45)); m.userData.drift = rnd(0.1, 0.4); bg.add(m);
   }
 }
 buildBackground();
@@ -726,11 +765,11 @@ const sfx = { ctx: null,
 /* ---------- game state ---------- */
 const game = { mode: 'title', net: false, me: 'A', active: 'A', level: null, A: null, B: null, remote: null, band: null, lives: 5, cp: 0, t0: 0, acc: 0, over: false, respawnT: 0, seed: 0 };
 const ROLE_NAME = { A: 'A', B: 'B' };
-function spawnPos(role, cpI) { const z = game.level.cps[cpI].z; return role === 'A' ? laneA(z).add(V(0, 0.02, 0)) : laneB(z).add(V(0.02, 0, 0)); }
+function spawnPos(role, i) { return game.level.spawns[i][role].clone(); }
 function makeRemote(role) { const b = makeBody(role, spawnPos(role, 0)); b.remote = true; b.snaps = []; return b; }
 function startGame(seed, net) {
-  game.seed = seed; game.net = net; game.level = genLevel(seed); buildLevelMeshes(game.level);
-  game.lives = 5; game.cp = 0; game.over = false; game.t0 = performance.now(); game.acc = 0; game.respawnT = 0;
+  game.seed = seed; game.net = net; game.level = genWorld(seed); buildLevelMeshes(game.level);
+  game.lives = 5; game.cp = 0; game.found = 0; game.over = false; game.t0 = performance.now(); game.acc = 0; game.respawnT = 0;
   if (!net) { game.me = 'A'; game.active = 'A'; game.A = makeBody('A', spawnPos('A', 0)); game.B = makeBody('B', spawnPos('B', 0)); }
   else { game.active = game.me; game[game.me] = makeBody(game.me, spawnPos(game.me, 0)); const o = game.me === 'A' ? 'B' : 'A'; game[o] = makeRemote(o); }
   game.A.isFirst = true; game.B.isFirst = false;
@@ -739,7 +778,7 @@ function startGame(seed, net) {
   camState.init = false;
   showScreen(null); $('hud').hidden = false; $('bSwap').hidden = net; $('hudMic').hidden = !net; updateSwap();
   renderLives(); game.mode = 'play';
-  toast(net ? `You are ${game.me}. ${game.me === 'A' ? 'Your down is down.' : 'Your down is sideways.'} Climb to the sun.` : 'Practice: you control both. Tap Swap to switch.');
+  renderSuns(); toast(net ? `You are ${game.me}. ${game.me === 'A' ? 'Your down is down.' : 'Your down is sideways.'} Find the 5 suns.` : 'Find the 5 suns. You control both climbers: tap Swap to switch.', 3600);
   rotateHint();
 }
 function respawn(cpI) {
@@ -748,6 +787,7 @@ function respawn(cpI) {
     b.p.copy(spawnPos(r, cpI)); b.v.set(0, 0, 0); b.state = 'ground'; b.airT = 0; b.grab = null; b.yankT = 0; b.halfL = 2.2; }
   game.band = makeBand(game.A.p, game.B.p); resetRopeDraw(game.A.p, game.B.p);
 }
+function renderSuns() { $('suns').innerHTML = game.level.orbs.map(o => `<i style="background:${o.got ? o.color : 'transparent'}"></i>`).join(''); }
 function renderLives() { $('lives').innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < game.lives ? '' : 'gone'}"></i>`).join(''); }
 let toastT = null;
 function toast(s, ms) { const t = $('toast'); t.textContent = s; t.classList.remove('hide'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hide'), ms || 2600); }
@@ -767,11 +807,17 @@ function onFell(role) {
 function endGame(won) {
   game.mode = 'end'; $('hud').hidden = true; rotateHint();
   const secs = Math.round((performance.now() - game.t0) / 1000), tm = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-  $('endTitle').textContent = won ? 'You reached the sun' : 'Out of lives';
-  $('endText').textContent = won ? `Climbed in ${tm} with ${game.lives} ${game.lives === 1 ? 'life' : 'lives'} to spare.` : `You got ${Math.round(maxZ() / game.level.goalZ * 100)}% of the way. A new painting is waiting.`;
+  $('endTitle').textContent = won ? 'You found every sun' : 'Out of lives';
+  $('endText').textContent = won ? `Found every sun in ${tm} with ${game.lives} ${game.lives === 1 ? 'life' : 'lives'} to spare.` : `You found ${game.found} of 5 suns. A new painting is waiting.`;
   $('againBtn').hidden = game.net && !NET.host; showScreen('sEnd'); if (won) sfx.play('win');
 }
-const maxZ = () => Math.max(game.A.p.z, game.B.p.z);
+// a sun is found when either climber touches it; it becomes the new place to come back to
+function collectOrb(i, by) {
+  const o = game.level.orbs[i]; if (!o || o.got) return; o.got = true; game.found++; game.cp = i + 1; renderSuns(); sfx.play('cp');
+  if (isHost()) netSend({ t: 'orb', i, by });
+  if (game.found >= game.level.orbs.length) { if (isHost()) { game.over = true; netSend({ t: 'win', lives: game.lives }); endGame(true); } }
+  else toast(`${by} found a sun. ${game.level.orbs.length - game.found} to go.`);
+}
 
 /* ---------- input ---------- */
 const keys = {}, touchIn = { x: 0, y: 0, jump: false, grab: false, rin: false, rout: false };
@@ -811,9 +857,29 @@ function updateCamera(dt) {
   const { f } = camBasis(b), up = b.up, D = 4.8;
   const tgt = b.p.clone().addScaledVector(up, 0.6);
   const pos = tgt.clone().addScaledVector(f, -D * Math.cos(b.pitch)).addScaledVector(up, D * Math.sin(b.pitch) + 0.3);
+  // keep solids from blocking the view: pull the camera in front of anything between it and you
+  const near = nearCols(game.level.cols, tgt, D + 2);
+  for (let t = 0.12; t <= 1; t += 0.06) { const pt = tgt.clone().lerp(pos, t); let hit = false;
+    for (const c of near) { if (c.mat === 'grid' || c.mat === 'pole') continue; nearest(c, pt, NR); if (NR.inside || pt.distanceTo(NR.q) < 0.3) { hit = true; break; } }
+    if (hit) { const want = pos.clone(); pos.copy(tgt).lerp(want, Math.max(0.3, t - 0.08)); break; } }
   const k = camState.init ? 1 - Math.pow(0.002, dt) : 1;
   camState.pos.lerp(pos, k); camState.tgt.lerp(tgt, k); camState.up.lerp(up, camState.init ? 1 - Math.pow(0.01, dt) : 1).normalize(); camState.init = true;
   camera.position.copy(camState.pos); camera.up.copy(camState.up); camera.lookAt(camState.tgt.clone().addScaledVector(f, 1.2));
+}
+
+/* ---------- a pointer to the nearest sun you haven't found ---------- */
+function pointToSun() {
+  const b = game[game.active], arrow = $('arrow'); if (!b) return;
+  let best = null, bd = 1e9; for (const o of game.level.orbs) if (!o.got) { const d = o.p.distanceTo(b.p); if (d < bd) { bd = d; best = o; } }
+  if (!best) { arrow.hidden = true; return; }
+  const v = best.p.clone().project(camera), fwd = V(); camera.getWorldDirection(fwd);
+  const behind = best.p.clone().sub(camera.position).dot(fwd) < 0;
+  const onScreen = !behind && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.85;
+  if (onScreen) { arrow.hidden = false; const sx = (v.x * 0.5 + 0.5) * innerWidth, sy = (-v.y * 0.5 + 0.5) * innerHeight; arrow.style.transform = `translate(${sx}px, ${sy - 54}px) translate(-50%,-50%) rotate(${Math.PI / 2}rad)`; arrow.style.setProperty('--c', best.color); return; }
+  arrow.hidden = false; let x = v.x, y = v.y; if (behind) { x = -x; y = -y; }
+  const ang = Math.atan2(-y, x), r = Math.min(innerWidth, innerHeight) * 0.38;
+  arrow.style.transform = `translate(${innerWidth / 2 + Math.cos(ang) * r}px, ${innerHeight / 2 + Math.sin(ang) * r}px) translate(-50%,-50%) rotate(${ang}rad)`;
+  arrow.style.setProperty('--c', best.color);
 }
 
 /* ---------- the loop ---------- */
@@ -838,16 +904,12 @@ function physics(dt) {
   }
   // falls
   for (const b of [A, B]) {
-    if (b.remote) continue; const s = spine(b.p.z), off = Math.hypot(b.p.x - s.x - 1.1, b.p.y - s.y + 0.7);
-    if ((off > 15 || b.p.z < -9 || b.airT > 8) && game.respawnT <= 0 && !b.fellSent) { b.fellSent = true; onFell(b.role); }
+    if (b.remote) continue;
+    if ((b.p.length() > WORLD_R + 14 || b.airT > 4) && game.respawnT <= 0 && !b.fellSent) { b.fellSent = true; onFell(b.role); }
+    game.level.orbs.forEach((o, i) => { if (!o.got && b.p.distanceTo(o.p) < 1.7) { if (isHost()) collectOrb(i, b.role); else if (!o.asked) { o.asked = true; netSend({ t: 'orb?', i, by: b.role }); } } });
   }
   // checkpoints and the goal (host decides)
-  if (isHost() && !game.over) {
-    const cps = game.level.cps;
-    for (let i = game.cp + 1; i < cps.length; i++) if (maxZ() > cps[i].z) { game.cp = i; netSend({ t: 'cp', i }); toast('Checkpoint'); sfx.play('cp'); }
-    const gz = game.level.goalZ - 2.5;
-    if (A.p.z > gz && B.p.z > gz && game.respawnT <= 0) { game.over = true; netSend({ t: 'win', lives: game.lives }); endGame(true); }
-  }
+
 }
 function remoteFrame(dt) {
   const r = game.net ? game[game.me === 'A' ? 'B' : 'A'] : null; if (!r || !r.snaps.length) return;
@@ -870,16 +932,14 @@ function frame() {
     animClimber(chA, va, vb, { taut, dir: dirA }, dt, time); animClimber(chB, vb, va, { taut, dir: dirB }, dt, time);
     drawRope(A.p.clone().addScaledVector(A.up, -0.17), B.p.clone().addScaledVector(B.up, -0.17), A.up.clone().negate(), B.up.clone().negate(), game.ropeL || 4.4, game.band, taut, game.level.cols, dt);
     updateCamera(dt);
-    const gz = game.level.goalZ; $('progA').style.left = `calc(${clamp(A.p.z / gz, 0, 1) * 100}% - 5px)`; $('progB').style.left = `calc(${clamp(B.p.z / gz, 0, 1) * 100}% - 5px)`;
+    pointToSun();
   } else {
     // title: drift through a fresh painting
-    if (!game.level) { game.level = genLevel(titleSeed); buildLevelMeshes(game.level); }
-    const z = (time * 2.2) % (game.level.goalZ - 4), s = spine(z);
-    camera.position.set(s.x + 4.5 + Math.sin(time * 0.3) * 1.5, s.y + 2.5, z - 6); camera.up.set(0, 1, 0); camera.lookAt(s.x + 1, s.y - 0.5, z + 4);
+    if (!game.level) { game.level = genWorld(titleSeed); buildLevelMeshes(game.level); }
+    const a = time * 0.07; camera.position.set(0, 1.6, 0); camera.up.set(0, 1, 0); camera.lookAt(Math.cos(a) * 10, 1.6 + Math.sin(time * 0.05) * 4, Math.sin(a) * 10);
   }
-  for (const m of levelGroup.children) if (m.userData.spin) m.rotation.z += m.userData.spin * dt;
-  const cz = camera.position.z, cs = spine(cz);
-  bg.children.forEach(m => { const o = m.userData.off; o.x += m.userData.drift * dt; if (o.x > 16) o.x = -16; let z = o.z; m.position.set(cs.x + o.x, cs.y + o.y, cz + z); });
+  bg.children.forEach(m => { m.position.x += m.userData.drift * dt; if (m.position.x > 45) m.position.x = -45; });
+  orbMeshes.forEach((g, i) => { const o = game.level && game.level.orbs[i]; g.quaternion.copy(camera.quaternion); g.rotateZ(time * 0.4); const s = o && o.got ? Math.max(0.001, g.scale.x * Math.pow(0.02, dt)) : 1 + Math.sin(time * 2 + i) * 0.06; g.scale.setScalar(s); g.visible = s > 0.01; });
   renderer.render(scene, camera);
 }
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
@@ -961,7 +1021,8 @@ function netData(m) {
     case 's': if (other && other.remote) { other.snaps = [{ p: V(...m.p), v: V(...m.v), st: STATES[m.st] || 'air', at2: m.at, hl: m.hl, mo: m.mo, gp: V(...m.gp), gn: V(...m.gn), gk: m.gk, sp: m.sp, at: performance.now() }]; } break;
     case 'fell': if (NET.host) onFell(m.r); break;
     case 'resp': if (!NET.host) { game.lives = m.lives; renderLives(); if (m.over) { game.over = true; endGame(false); } else { toast(`${m.by} fell. ${m.lives} ${m.lives === 1 ? 'life' : 'lives'} left.`); sfx.play('fall'); game.respawnT = 1.2; game.cp = m.cp; } } break;
-    case 'cp': if (!NET.host && m.i > game.cp) { game.cp = m.i; toast('Checkpoint'); sfx.play('cp'); } break;
+    case 'orb?': if (NET.host) collectOrb(m.i, m.by); break;
+    case 'orb': if (!NET.host) collectOrb(m.i, m.by); break;
     case 'win': if (!NET.host) { game.lives = m.lives; game.over = true; endGame(true); } break;
     case 'full': lob('That game already has two climbers.'); netReset(); break;
     case 'bye': netDrop(); break;
@@ -1011,7 +1072,7 @@ $('hudMic').addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMi
 $('hudExit').addEventListener('click', () => { if (game.net) { netSend({ t: 'bye' }); netReset(); } toMenu(); });
 $('againBtn').addEventListener('click', () => { if (game.net) { if (!NET.host) return; const seed = (Math.random() * 1e9) | 0; netSend({ t: 'start', seed }); startGame(seed, true); } else startGame((Math.random() * 1e9) | 0, false); });
 $('menuBtn').addEventListener('click', () => { if (game.net) { netSend({ t: 'bye' }); netReset(); } toMenu(); });
-if (/[?&]practice/.test(location.search)) { startGame(+((location.search.match(/seed=(\d+)/) || [])[1] || 7), false); const zq = location.search.match(/[?&]z=(\d+)/); if (zq) { const z = +zq[1]; game.A.p.copy(laneA(z)); game.B.p.copy(laneB(z)); game.band = makeBand(game.A.p, game.B.p); resetRopeDraw(game.A.p, game.B.p); } }
+if (/[?&]practice/.test(location.search)) startGame(+((location.search.match(/seed=(\d+)/) || [])[1] || 7), false);
 frame();
 
 </script>
