@@ -107,6 +107,23 @@ button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1; text-shadow: 3px 3px 0 var(--yellow); }
 .card p { margin: 0; font-size: 15px; line-height: 1.4; font-weight: 700; }
 .card .ghost { background: rgba(29,16,48,0.08); }
+#lobby { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(29,16,48,0.45); padding: 16px; z-index: 20; }
+.card.lob { width: min(400px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.card.lob h2 { font-size: 34px; }
+.lobgrid { display: grid; gap: 12px; }
+.joinrow { display: flex; gap: 8px; }
+.joinrow input { flex: 1; min-width: 0; font: 900 24px var(--body); letter-spacing: 0.3em; text-align: center; padding: 8px 12px; border-radius: 16px; border: 3px solid var(--ink); background: #fff; color: var(--ink); }
+.joinrow input:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.cta.alt { background: var(--pink); color: var(--fg); box-shadow: 0 4px 0 #b3005a; }
+.codebox { display: flex; align-items: baseline; gap: 12px; background: var(--ink); color: var(--yellow); border-radius: 18px; padding: 10px 16px; }
+.codebox span { font-weight: 900; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg); }
+.codebox b { font-family: var(--display); font-weight: 400; font-size: 40px; letter-spacing: 0.12em; font-variant-numeric: tabular-nums; }
+#lobPlayers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-weight: 800; }
+#lobPlayers li { display: flex; align-items: center; gap: 10px; }
+#lobPlayers i { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); }
+#lobStatus { margin: 0; min-height: 1.2em; color: #b3005a; font-weight: 800; font-size: 14px; }
+#lobStatus:empty { display: none; }
+#bMic.off { background: var(--red); }
 @media (max-height: 420px) { #genPanel { width: min(380px, 52vw); padding: 10px 14px; } #phNote { font-size: 13px; } #hint { top: calc(96px + env(safe-area-inset-top, 0px)); } }
 @media (prefers-reduced-motion: reduce) { #bFlag { animation: none; } #bars.low .bar { animation: none; } }
 </style>
@@ -125,7 +142,7 @@ button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
       <div class="legend"><span class="l1">Stamina</span><span class="l2">Hunger</span><span class="l3">Hurt</span></div>
     </div>
   </div>
-  <div id="topbtns"><span class="pill quiet" id="sumPill" hidden></span><button class="pill" id="bMap" hidden>Map</button><button class="pill" id="bNew" hidden>New</button></div>
+  <div id="topbtns"><span class="pill quiet" id="sumPill" hidden></span><button class="pill" id="bCode" hidden></button><button class="pill" id="bMic" hidden>Mic on</button><button class="pill" id="bMap" hidden>Map</button><button class="pill" id="bNew" hidden>New</button></div>
 </header>
 <section id="genPanel">
   <div class="ph"><span id="phNum"></span><b id="phTitle"></b></div>
@@ -134,7 +151,7 @@ button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
     <span>Solid volume</span><div class="track"><i id="mV"></i><em id="tV"></em></div><b id="vV"></b>
     <span>Surface area</span><div class="track"><i id="mA"></i><em id="tA"></em></div><b id="vA"></b>
   </div>
-  <div class="row"><button class="ghost" id="bSkip">Skip to the end</button><button class="cta" id="bStart" hidden>Start climbing</button><button class="ghost" id="bRegen" hidden>New island</button></div>
+  <div class="row"><button class="ghost" id="bSkip">Skip to the end</button><button class="cta" id="bStart" hidden>Start climbing</button><button class="ghost" id="bRegen" hidden>New island</button><button class="ghost" id="bFriends" hidden>Play with friends</button></div>
 </section>
 <div id="pad" hidden>
   <button id="bRope"><span id="ropeL">Rope</span><small id="ropeN">48m</small></button>
@@ -145,6 +162,21 @@ button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; }
 <button class="cta" id="bFlag" hidden>Plant flag</button>
 <div id="toast"></div>
 <div id="hint" hidden><span id="hintText"></span></div>
+<div id="lobby" hidden><div class="card lob">
+  <h2 id="lobTitle">Play with friends</h2>
+  <div id="lobStart" class="lobgrid">
+    <p>Up to 4 climbers on the same island, with voice chat. One of you hosts and shares a 4-digit code.</p>
+    <button class="cta" id="bHost">Host a game</button>
+    <div class="joinrow"><input id="joinCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Code" autocomplete="off" aria-label="4-digit code"><button class="cta alt" id="bJoin">Join</button></div>
+  </div>
+  <div id="lobRoom" class="lobgrid" hidden>
+    <div class="codebox"><span>Code</span><b id="lobCode"></b></div>
+    <ul id="lobPlayers"></ul>
+    <p id="lobNote"></p>
+  </div>
+  <p id="lobStatus" role="status"></p>
+  <div class="row"><button class="ghost" id="bLobBack">Close</button><button class="ghost" id="bLobMic" hidden>Mic on</button><button class="ghost" id="bLobLeave" hidden>Leave</button></div>
+</div></div>
 <div id="win" hidden><div class="card"><h2>Out!</h2><p id="winText"></p><div class="row"><button class="cta" id="bWinNew">New island</button><button class="ghost" id="bWinStay">Keep exploring</button></div></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -837,7 +869,8 @@ float texH(vec3 p) {
   // ---------- UI refs ----------
   const ui = {};
   ['genPanel', 'phNum', 'phTitle', 'phNote', 'mV', 'mA', 'tV', 'tA', 'vV', 'vA', 'bSkip', 'bStart', 'bRegen', 'pad', 'bars', 'st', 'hu', 'inj', 'ropeN', 'hookN',
-    'bGrab', 'bRope', 'bHook', 'ropeL', 'hookL', 'bFlag', 'toast', 'hint', 'hintText', 'win', 'winText', 'brand', 'seed', 'bMap', 'bNew', 'joy', 'knob', 'flash', 'sumPill']
+    'bGrab', 'bRope', 'bHook', 'ropeL', 'hookL', 'bFlag', 'toast', 'hint', 'hintText', 'win', 'winText', 'brand', 'seed', 'bMap', 'bNew', 'joy', 'knob', 'flash', 'sumPill',
+    'lobby', 'lobStart', 'lobRoom', 'lobTitle', 'lobCode', 'lobPlayers', 'lobNote', 'lobStatus', 'bHost', 'bJoin', 'joinCode', 'bLobBack', 'bLobLeave', 'bLobMic', 'bFriends', 'bCode', 'bMic']
     .forEach(id => ui[id] = $(id));
   ui.tV.style.left = (G.TARGETS.vol / 1.25 * 100) + '%';
   ui.tA.style.left = (G.TARGETS.area / 2.5 * 100) + '%';
@@ -927,11 +960,32 @@ float texH(vec3 p) {
   function newClimber(name, colors, bot) {
     const c = { name, bot, col: colors, m: makeModel(colors), p: new V3(), v: new V3(), r: 0.45, state: 'air', wallN: new V3(0, 0, 1), facing: new V3(0, 0, 1),
       stamina: 100, hunger: 0, injury: 0, rope: 48, hooks: 10, groundT: 0, climbCD: 0, tired: false, hold: null, carry: null, hurtT: 0, climbPh: 0, walkPh: 0, cheer: 0,
-      lastSafe: new V3(), safeT: 0, hopT: 0, sprinting: false, onBuddy: null, inp: { want: new V3(), up: 0, jump: false, grab: false, sprint: false }, brain: { stuck: 0, far: 0, lastD: 0 } };
+      lastSafe: new V3(), safeT: 0, hopT: 0, sprinting: false, onBuddy: null, remote: false, mouth: 0, inp: { want: new V3(), up: 0, jump: false, grab: false, sprint: false }, brain: { stuck: 0, far: 0, lastD: 0 } };
     climbers.push(c); return c;
   }
-  const P = newClimber('You', { body: '#fff0f6', belly: '#ffd2e6', hat: '#ff2e88', pom: '#ffe11a', pack: '#2a5bff', glove: '#ffe11a', boot: '#8a4dff', rope: '#ff2e88' }, false);
-  const B = newClimber('Buddy', { body: '#b6ffe6', belly: '#e6fff6', hat: '#ff7a1a', pom: '#18cfff', pack: '#ff2e88', glove: '#ffffff', boot: '#2a5bff', rope: '#18cfff' }, true);
+  const PALS = [
+    { body: '#fff0f6', belly: '#ffd2e6', hat: '#ff2e88', pom: '#ffe11a', pack: '#2a5bff', glove: '#ffe11a', boot: '#8a4dff', rope: '#ff2e88' },
+    { body: '#b6ffe6', belly: '#e6fff6', hat: '#ff7a1a', pom: '#18cfff', pack: '#ff2e88', glove: '#ffffff', boot: '#2a5bff', rope: '#18cfff' },
+    { body: '#fff4c2', belly: '#fffbe0', hat: '#8a4dff', pom: '#6dff3a', pack: '#ff7a1a', glove: '#18cfff', boot: '#ff2e88', rope: '#8a4dff' },
+    { body: '#d6e4ff', belly: '#eef3ff', hat: '#2a5bff', pom: '#ff7a1a', pack: '#6dff3a', glove: '#ff2e88', boot: '#ffe11a', rope: '#2a5bff' }];
+  const P = newClimber('You', PALS[0], false);
+  const B = newClimber('Buddy', PALS[1], true);
+  function dropModel(c) { scene.remove(c.m.root); scene.remove(c.m.limbG); }
+  function recolor(c, pal) {
+    if (!pal || c.col === pal) return;
+    const vis = c.m.root.visible; dropModel(c); c.col = pal; c.m = makeModel(pal); c.m.root.visible = vis; c.m.limbG.visible = vis;
+    if (c.remote) addTag(c);
+  }
+  function addTag(c) {
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.34, 12), new THREE.MeshBasicMaterial({ color: c.col.hat, depthTest: false, transparent: true, opacity: 0.95, fog: false }));
+    t.rotation.x = Math.PI; t.position.y = 1.5; t.renderOrder = 30; c.m.root.add(t); c.tag = t;
+  }
+  function removeClimber(c, dispose) {
+    const i = climbers.indexOf(c); if (i >= 0) climbers.splice(i, 1);
+    c.m.root.visible = false; c.m.limbG.visible = false;
+    if (c.carry) { const r = c.carry; r.carrier = null; r.pts[r.pts.length - 1].pin = false; c.carry = null; }
+    if (dispose) dropModel(c);
+  }
 
   // ---------- items ----------
   const items = [];
@@ -967,8 +1021,10 @@ float texH(vec3 p) {
   const knotMat = new THREE.MeshStandardMaterial({ color: 0xffe11a, emissive: 0xffe11a, emissiveIntensity: 0.55 });
   const pt = (x, y, z, pin = false) => ({ x, y, z, px: x, py: y, pz: z, pin });
   function handPos(c, out) { const h = c.m.arms[1].world; return h && h.distanceTo(c.p) < 1.2 ? out.copy(h) : out.set(c.p.x + c.facing.x * 0.3, c.p.y + 0.25, c.p.z + c.facing.z * 0.3); }
-  function makeRopeObj(owner, pts) {
-    const r = { owner, pts, seg: SEG, carrier: null, tied: false, knots: [], stripe: [new THREE.Color(owner.col.rope), new THREE.Color('#fff6fb')] };
+  let ropeSeq = 0;
+  const ropeById = id => ropes.find(r => r.id === id) || null;
+  function makeRopeObj(col, pts, id) {
+    const r = { id: id || ((NET.id || 'me') + ':' + (ropeSeq++)), col, pts, seg: SEG, carrier: null, tied: false, knots: [], stripe: [new THREE.Color(col), new THREE.Color('#fff6fb')] };
     for (let k = 0; k < 2; k++) { const m = new THREE.Mesh(knotGeo, knotMat); m.visible = false; scene.add(m); r.knots.push(m); }
     ropes.push(r); return r;
   }
@@ -985,22 +1041,28 @@ float texH(vec3 p) {
     const A = anchorFor(c);
     if (!A) { say(c, 'Stand on something solid or hold a wall to tie off'); return; }
     const h = handPos(c, new V3());
-    const r = makeRopeObj(c, [pt(A.x, A.y, A.z, true), pt(h.x, h.y, h.z, true)]);
+    const r = makeRopeObj(c.col.rope, [pt(A.x, A.y, A.z, true), pt(h.x, h.y, h.z, true)]);
     r.carrier = c; c.carry = r; c.rope -= SEG;
+    if (c === P) netEvt({ t: 'rs', r: r.id, a: v3a(A), h: v3a(h) });
     say(c, 'Tied off. Walk away to pay out rope, then Tie or Drop');
   }
   function tieRope(c) {
     const r = c.carry; if (!r) return;
     const Bp = anchorFor(c);
     if (!Bp) { say(c, 'Get onto ground or a wall to tie this end'); return; }
+    const kept = tieRopeAt(r, Bp, c);
+    if (c === P) netEvt(kept ? { t: 'rt', r: r.id, b: v3a(Bp) } : { t: 'rx', r: r.id });
+    say(c, kept ? 'Pulled tight' : 'Rope packed away');
+  }
+  function tieRopeAt(r, Bp, c) {
     const A = r.pts[0], L = Math.hypot(Bp.x - A.x, Bp.y - A.y, Bp.z - A.z);
     const before = ropeLen(r);
-    if (L < 1) { removeRope(r); c.rope += before + SEG; c.carry = null; say(c, 'Rope packed away'); return; }
+    if (L < 1) { removeRope(r); if (c) { c.rope += before + SEG; c.carry = null; } return false; }
     const total = L * 1.015, n = Math.max(2, Math.ceil(total / SEG)), seg = total / n, pts = [];
     for (let i = 0; i <= n; i++) { const t = i / n; pts.push(pt(A.x + (Bp.x - A.x) * t, A.y + (Bp.y - A.y) * t - Math.sin(Math.PI * t) * L * 0.02, A.z + (Bp.z - A.z) * t, i === 0 || i === n)); }
-    r.pts = pts; r.seg = seg; r.tied = true; r.carrier = null; c.carry = null;
-    c.rope = Math.max(0, c.rope + before - total);
-    say(c, 'Pulled tight');
+    r.pts = pts; r.seg = seg; r.tied = true; r.carrier = null;
+    if (c) { c.carry = null; c.rope = Math.max(0, c.rope + before - total); }
+    return true;
   }
   function dropRope(c) {
     const r = c.carry; if (!r) return;
@@ -1013,6 +1075,7 @@ float texH(vec3 p) {
       for (let k = 1; k <= 3; k++) add(s.x + (edge.x - s.x) * k / 3, s.y + (edge.y - s.y) * k / 3, s.z + (edge.z - s.z) * k / 3);
       for (let y = edge.y - SEG; y > edge.y - 40; y -= SEG) { if (G.sampleD(edge.x, y - 0.6, edge.z) > -0.1) { add(edge.x, y, edge.z); add(edge.x, y - SEG, edge.z); break; } if (!add(edge.x, y, edge.z)) break; }
     }
+    if (c === P) netEvt({ t: 'rd', r: r.id, pts: r.pts.map(p => [r2(p.x), r2(p.y), r2(p.z)]) });
     say(c, 'Rope dropped');
   }
   function removeRope(r) { const i = ropes.indexOf(r); if (i >= 0) ropes.splice(i, 1); for (const k of r.knots) scene.remove(k); for (const c of climbers) if (c.hold && c.hold.rope === r) { c.hold = null; c.state = 'air'; } }
@@ -1047,7 +1110,7 @@ float texH(vec3 p) {
           else break;
         }
         const n = pts.length, prev = pts[n - 2], dx = h.x - prev.x, dy = h.y - prev.y, dz = h.z - prev.z, d = Math.hypot(dx, dy, dz);
-        if (c.rope < SEG && d > SEG * 1.2) { // tether: you are at the end of your rope
+        if (c.rope < SEG && d > SEG * 1.2 && !c.remote) { // tether: you are at the end of your rope
           const ex = (d - SEG * 1.2) / d; c.p.x -= dx * ex; c.p.y -= dy * ex; c.p.z -= dz * ex;
           const vn = (c.v.x * dx + c.v.y * dy + c.v.z * dz) / d; if (vn > 0) { c.v.x -= dx / d * vn; c.v.y -= dy / d * vn; c.v.z -= dz / d * vn; }
         }
@@ -1132,12 +1195,16 @@ float texH(vec3 p) {
     if (c.hooks <= 0) { say(c, 'No hooks left'); return; }
     const pos = c.p.clone().addScaledVector(c.wallN, -0.4); pos.y += 0.3;
     if (hooks.some(h => h.p.distanceTo(pos) < 0.7)) { say(c, 'There is already a hook here'); return; }
-    const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: c.col.hat, emissive: c.col.hat, emissiveIntensity: 0.5, roughness: 0.4 });
-    const base = new THREE.Mesh(hookBase, m); base.rotation.x = Math.PI / 2; g.add(base);
-    const hd = new THREE.Mesh(hookHandle, new THREE.MeshStandardMaterial({ color: c.col.pom, emissive: c.col.pom, emissiveIntensity: 0.5 })); hd.position.z = 0.03; hd.rotation.y = Math.PI / 2; hd.rotation.z = Math.PI / 2; g.add(hd);
-    g.position.copy(pos); g.lookAt(pos.clone().add(c.wallN)); scene.add(g);
-    hooks.push({ p: pos, g }); c.hooks--;
+    addHook(pos, c.wallN, c.col.hat, c.col.pom); c.hooks--;
+    netEvt({ t: 'hk', p: v3a(pos), n: v3a(c.wallN), a: c.col.hat, b: c.col.pom });
     say(c, c.hooks ? `Hook in. ${c.hooks} left` : 'Last hook in');
+  }
+  function addHook(pos, n, a, b) {
+    const g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: a, emissive: a, emissiveIntensity: 0.5, roughness: 0.4 });
+    const base = new THREE.Mesh(hookBase, m); base.rotation.x = Math.PI / 2; g.add(base);
+    const hd = new THREE.Mesh(hookHandle, new THREE.MeshStandardMaterial({ color: b, emissive: b, emissiveIntensity: 0.5 })); hd.position.z = 0.03; hd.rotation.y = Math.PI / 2; hd.rotation.z = Math.PI / 2; g.add(hd);
+    g.position.copy(pos); g.lookAt(pos.clone().add(n)); scene.add(g);
+    hooks.push({ p: pos.clone(), n: n.clone(), a, b, g });
   }
   const hookNear = p => hooks.some(h => Math.abs(h.p.y - p.y) < 1.5 && h.p.distanceTo(p) < 1.25);
 
@@ -1161,7 +1228,7 @@ float texH(vec3 p) {
     cloth.position.set(0.04, 2.15, 0); g.add(cloth);
     cloth.userData.base = Float32Array.from(cg.attributes.position.array);
     g.scale.set(1, 0.01, 1); scene.add(g);
-    return { g, cloth, grow: 0 };
+    return { g, cloth, grow: 0, col: color };
   }
   const CONF = 260;
   const confGeo = new THREE.BufferGeometry(); confGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(CONF * 3), 3));
@@ -1181,14 +1248,21 @@ float texH(vec3 p) {
   function plantFlag(c) {
     const s = summitHere(c); if (!s) return;
     const base = c.p.clone().addScaledVector(c.facing, 0.6); base.y = c.p.y - 0.45;
-    s.flag = makeFlag(base, c.col.hat); s.beam.visible = false; s.ring.visible = false;
-    c.cheer = 2.6; B.cheer = 2.6; burst(base);
+    netEvt({ t: 'fl', i: summits.indexOf(s), p: v3a(base), c: c.col.hat });
+    applyFlag(s, base, c.col.hat, true);
+  }
+  function applyFlag(s, base, color, mine, quiet) {
+    if (!s || s.flag) return;
+    s.flag = makeFlag(base, color); s.beam.visible = false; s.ring.visible = false;
+    if (quiet) { s.flag.grow = 1; s.flag.g.scale.y = 1; return; }
+    for (const c of climbers) if (c.p.distanceTo(base) < 14) c.cheer = 2.6;
+    burst(base);
     const done = summits.filter(x => x.flag).length;
     if (done === summits.length) {
       const secs = Math.round((performance.now() - startTime) / 1000);
       ui.winText.textContent = `All ${summits.length} summits flagged on island #${seed} in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}.`;
       setTimeout(() => { ui.win.hidden = false; }, 1800);
-    } else toast(`Summit flagged. ${summits.length - done} to go`);
+    } else toast(`${mine ? 'Summit flagged' : 'A friend flagged a summit'}. ${summits.length - done} to go`);
   }
 
   // ---------- physics ----------
@@ -1210,7 +1284,7 @@ float texH(vec3 p) {
       for (const [oy, orr] of [[0, 0.45], [0.66, 0.3]]) {
         const dx = c.p.x - o.p.x, dy = c.p.y - (o.p.y + oy), dz = c.p.z - o.p.z, d = Math.hypot(dx, dy, dz), min = c.r + orr;
         if (d >= min || d < 1e-4) continue;
-        const nx = dx / d, ny = dy / d, nz = dz / d, pen = min - d, share = o.state === 'air' ? 0.5 : 1;
+        const nx = dx / d, ny = dy / d, nz = dz / d, pen = min - d, share = (o.state === 'air' && !o.remote) ? 0.5 : 1;
         c.p.x += nx * pen * share; c.p.y += ny * pen * share; c.p.z += nz * pen * share;
         if (share < 1) { o.p.x -= nx * pen * 0.5; o.p.y -= ny * pen * 0.5; o.p.z -= nz * pen * 0.5; }
         const vn = c.v.x * nx + c.v.y * ny + c.v.z * nz; if (vn < 0) { c.v.x -= nx * vn; c.v.y -= ny * vn; c.v.z -= nz * vn; }
@@ -1236,6 +1310,7 @@ float texH(vec3 p) {
     if (!c.bot) { if (msg) toast(msg); ui.flash.classList.remove('on'); void ui.flash.offsetWidth; ui.flash.classList.add('on'); }
   }
   function stepClimber(c, dt) {
+    if (c.remote) return;
     const inp = c.inp, maxSt = Math.max(0, 100 - c.hunger - c.injury);
     if (!c.bot) c.hunger = Math.min(100, c.hunger + dt * 0.25); else c.injury = Math.max(0, c.injury - dt * 0.6);
     if (c.stamina > maxSt) c.stamina = maxSt;
@@ -1344,7 +1419,7 @@ float texH(vec3 p) {
     if (!c.bot && c.state === 'ground' && input.grabLatch && !probeWall(c, c.facing)) { latchIdle += dt; if (latchIdle > 0.5) input.grabLatch = false; } else latchIdle = 0;
   }
   let latchIdle = 0;
-  function say(c, msg) { if (!c.bot) toast(msg); }
+  function say(c, msg) { if (c === P) toast(msg); }
 
   // ---------- buddy bot brain ----------
   function botThink(b, dt) {
@@ -1489,7 +1564,7 @@ float texH(vec3 p) {
     m.lookT -= dt; if (m.lookT <= 0) chooseLook(c);
     let tgt = m.lookAt === 'cam' ? cam.position : m.lookAt || m.look;
     if (c.state === 'climb') tgt = tmpB.set(c.p.x - c.wallN.x, c.p.y + 3, c.p.z - c.wallN.z);
-    if (c.hurtT > 0 && !c.bot) tgt = cam.position;
+    if (c.hurtT > 0 && c === P) tgt = cam.position;
     const d = tmpA.copy(tgt).sub(tmpB.set(c.p.x, c.p.y + 0.7, c.p.z)).normalize();
     const cy = Math.cos(m.yaw), sy = Math.sin(m.yaw), llx = d.x * cy - d.z * sy, llz = d.x * sy + d.z * cy;
     const hy = llz < -0.2 ? Math.sign(llx) * 0.9 : clamp(Math.atan2(llx, Math.max(0.05, llz)), -1.0, 1.0) * 0.85;
@@ -1504,7 +1579,7 @@ float texH(vec3 p) {
     m.blink -= dt;
     const ey = c.hurtT > 0 ? 0.3 : m.blink > 0 ? 0.1 : 1;
     for (const e of m.eyes) e.scale.y += (ey - e.scale.y) * Math.min(1, dt * 30);
-    m.mouth.scale.set(c.cheer > 0 ? 1.6 : 1, c.hurtT > 0 ? -0.7 : (c.cheer > 0 ? 1.8 : 1), 1);
+    const mo = c.mouth || 0; m.mouth.scale.set(c.cheer > 0 ? 1.6 : 1 + mo * 0.5, c.hurtT > 0 ? -0.7 : (c.cheer > 0 ? 1.8 : 1 + mo * 2.4), 1);
     m.coil.visible = c.rope > 0;
     m.limbG.visible = m.root.visible;
     const glow = 0.12 + 0.5 * G.skyAt(c.p.x, c.p.y + 0.6, c.p.z);
@@ -1548,13 +1623,15 @@ float texH(vec3 p) {
     clearWorld();
     seed = s ?? (Math.floor(Math.random() * 899999) + 100000);
     genIt = G.build(seed); genPause = 0; stepAcc = 0; dirty = true;
-    mode = 'gen'; setClip(true); for (const c of climbers) { c.m.root.visible = false; c.m.limbG.visible = false; }
+    mode = 'gen'; setClip(true); for (const c of climbers) { c.m.root.visible = false; c.m.limbG.visible = false; if (c.remote) { c.hold = null; c.carry = null; } }
     ui.genPanel.hidden = false; ui.bSkip.hidden = false; ui.bStart.hidden = true; ui.bRegen.hidden = true;
     ui.pad.hidden = true; ui.bars.hidden = true; ui.bFlag.hidden = true; ui.win.hidden = true; ui.hint.hidden = true; ui.sumPill.hidden = true;
     ui.brand.hidden = false; ui.seed.textContent = 'Island #' + seed; ui.bMap.hidden = true; ui.bNew.hidden = true;
     ui.bMap.textContent = 'Map'; ui.bMap.classList.remove('on');
     ui.phNum.textContent = ''; ui.phTitle.textContent = 'Starting'; ui.phNote.textContent = '';
     axUser = 0;
+    for (const c of climbers) if (c.remote) c.fresh = true;
+    renderMP();
   }
   function showPhase(v) { ui.phNum.textContent = String(v.phase).padStart(2, '0') + ' / 11'; ui.phTitle.textContent = v.title; ui.phNote.textContent = v.note; }
   function finishGen() {
@@ -1562,17 +1639,22 @@ float texH(vec3 p) {
     for (const it of info.items) items.push(makeItem(it.type, it.p));
     summits = info.summits.map(makeSummit);
     spawn.set(info.spawn[0], info.spawn[1] + 0.05, info.spawn[2]);
-    for (const c of climbers) resetClimber(c, true);
+    for (const c of climbers) if (!c.remote) resetClimber(c, true);
     startTime = 0;
+    if (NET.snap) { applySnap(NET.snap); NET.snap = null; }
     ui.phNum.textContent = 'Ready'; ui.phTitle.textContent = 'Island #' + seed;
-    ui.phNote.textContent = `You and Buddy start in a buried cave. Climb out and flag all ${summits.length} summits.`;
+    ui.phNote.textContent = NET.inGame && !climbers.includes(B)
+      ? `You and your friends start in a buried cave. Climb out together and flag all ${summits.length} summits.`
+      : `You and Buddy start in a buried cave. Climb out and flag all ${summits.length} summits.`;
     ui.bSkip.hidden = true; ui.bStart.hidden = false; ui.bRegen.hidden = false;
     for (const c of climbers) c.m.root.visible = true;
+    renderMP();
   }
   function resetClimber(c, full) {
     if (c.carry) dropRope(c);
     c.p.copy(spawn);
-    if (c.bot) { for (let k = 0; k < 16; k++) { const a = k * 0.785 + (k > 7 ? 0.39 : 0), r = k > 7 ? 2.2 : 1.3; tA.set(spawn.x + Math.cos(a) * r, spawn.y + 0.2, spawn.z + Math.sin(a) * r); if (sD(tA) < -0.5) { c.p.copy(tA); break; } } }
+    const slot = c.bot ? 0 : c === P ? (NET.inGame ? myPal() : 0) - 1 : -1;
+    if (slot >= 0) { for (let k = slot * 3; k < 16 + slot * 3; k++) { const a = k * 0.785 + (k > 7 ? 0.39 : 0), r = k > 7 ? 2.2 : 1.3; tA.set(spawn.x + Math.cos(a) * r, spawn.y + 0.2, spawn.z + Math.sin(a) * r); if (sD(tA) < -0.5) { c.p.copy(tA); break; } } }
     c.v.set(0, 0, 0); c.state = 'air'; c.hold = null; c.tired = false; c.m.fresh = true;
     if (full) { c.stamina = 100; c.hunger = 0; c.injury = 0; c.rope = 48; c.hooks = 10; }
     c.lastSafe.copy(c.p);
@@ -1586,6 +1668,7 @@ float texH(vec3 p) {
     ui.genPanel.hidden = true; ui.brand.hidden = true; ui.pad.hidden = false; ui.bars.hidden = false; ui.bMap.hidden = false; ui.bNew.hidden = false; ui.sumPill.hidden = false;
     ui.hint.hidden = false; hintT = 11;
     if (!startTime) startTime = performance.now();
+    renderMP();
   }
 
   // ---------- per-frame helpers ----------
@@ -1594,7 +1677,7 @@ float texH(vec3 p) {
       if (it.taken) { it.pop += dt * 5; it.g.scale.setScalar(Math.max(0.001, 1 + it.pop * 0.6 - it.pop * it.pop * 0.9)); if (it.pop > 1.3) it.g.visible = false; continue; }
       it.g.position.y = it.base + Math.sin(t * 2 + it.off) * 0.08 + 0.12; it.g.rotation.y += dt * 1.2;
       if (mode === 'play' && it.g.position.distanceTo(P.p) < 1.0) {
-        it.taken = true;
+        it.taken = true; netEvt({ t: 'take', i: items.indexOf(it) });
         if (it.type === 'candy') { P.hunger = Math.max(0, P.hunger - 35); P.stamina += 10; toast('Candy. Less hungry.'); }
         else if (it.type === 'bandage') { P.injury = Math.max(0, P.injury - 35); toast('Bandage. Less hurt.'); }
         else if (it.type === 'rope') { P.rope += 16; toast('Spare rope, +16m'); }
@@ -1663,6 +1746,7 @@ float texH(vec3 p) {
     ui.sumPill.textContent = `Summits ${summits.filter(s => s.flag).length}/${summits.length}`;
   }
   function physicsChecks(c) {
+    if (c.remote) return;
     if (c.p.y < -2 || (c.p.y < 3.2 && Math.hypot(c.p.x - CX, c.p.z - CZ) > 31 && G.skyAt(c.p.x, c.p.y + 1, c.p.z) > 0.8)) {
       if (c.carry) dropRope(c);
       c.p.copy(c.lastSafe); c.v.set(0, 0, 0); c.injury = Math.min(95, c.injury + 10); c.state = 'air'; c.hold = null; say(c, 'Splash! Washed back up.');
@@ -1696,6 +1780,8 @@ float texH(vec3 p) {
       axAz = 0.7 + Math.sin(t * 0.22) * 0.25 + axUser;
       if (genIt) setCut(axAz, CX, CZ, 4 + Math.sin(t * 0.45) * 12);
       else { setCut(axAz, spawn.x, spawn.z, 0.8); for (const c of climbers) animate(c, dt); }
+      netFrame(dt); voiceFrame(dt);
+      if (genIt) for (const c of climbers) { c.m.root.visible = false; c.m.limbG.visible = false; }
       axonView(CX, 26, CZ, axAz, 42);
       updateItems(dt, t); updateFlags(dt, t);
       renderer.render(scene, ortho);
@@ -1704,13 +1790,14 @@ float texH(vec3 p) {
     if (mode === 'play') {
       acc += dt; let n = 0;
       while (acc >= 1 / 90 && n++ < 6) {
-        playerInput(1 / 90); botThink(B, 1 / 90);
+        playerInput(1 / 90); if (climbers.includes(B)) botThink(B, 1 / 90);
         for (const c of climbers) stepClimber(c, 1 / 90);
         acc -= 1 / 90; input.jumpBuf -= 1 / 90; if (input.jumpBuf <= 0) P.inp.jump = false;
       }
       for (const c of climbers) physicsChecks(c);
       lookHold -= dt;
     }
+    netFrame(dt); voiceFrame(dt);
     if (mode !== 'gen') { updateRopes(dt / 2); updateRopes(dt / 2); }
     drawRopes();
     for (const c of climbers) animate(c, dt);
@@ -1719,7 +1806,7 @@ float texH(vec3 p) {
       setCut(mapAz, P.p.x, P.p.z, 0.6); axonView(P.p.x, P.p.y, P.p.z, mapAz, 28);
       for (const c of climbers) c.m.root.visible = true;
       renderer.render(scene, ortho);
-    } else { B.m.root.visible = true; playCamera(dt); renderer.render(scene, cam); }
+    } else { for (const c of climbers) if (c !== P) c.m.root.visible = true; playCamera(dt); renderer.render(scene, cam); }
   }
 
   // ---------- pointer input ----------
@@ -1773,16 +1860,16 @@ float texH(vec3 p) {
   bind(ui.bFlag, () => plantFlag(P));
   ui.bSkip.addEventListener('click', () => { if (!genIt) return; let r; while (!(r = genIt.next()).done) if (r.value.phase) showPhase(r.value); finishGen(); });
   ui.bStart.addEventListener('click', startPlay);
-  ui.bRegen.addEventListener('click', () => newIsland());
+  ui.bRegen.addEventListener('click', () => askNewIsland());
   ui.bMap.addEventListener('click', () => {
     if (mode === 'play') { mode = 'map'; setClip(true); mapAz = yaw; ui.pad.hidden = true; ui.hint.hidden = true; hintT = 0; ui.bMap.textContent = 'Back'; ui.bMap.classList.add('on'); }
     else if (mode === 'map') { mode = 'play'; setClip(false); ui.pad.hidden = false; ui.bMap.textContent = 'Map'; ui.bMap.classList.remove('on'); }
   });
   ui.bNew.addEventListener('click', () => {
-    if (newArmed > 0) { newArmed = 0; newIsland(); }
+    if (newArmed > 0) { newArmed = 0; askNewIsland(); }
     else { newArmed = 2.5; toast('Tap New again to leave this island', 2.5); }
   });
-  $('bWinNew').addEventListener('click', () => newIsland());
+  $('bWinNew').addEventListener('click', () => askNewIsland());
   $('bWinStay').addEventListener('click', () => { ui.win.hidden = true; });
 
   addEventListener('keydown', e => {
@@ -1801,9 +1888,360 @@ float texH(vec3 p) {
   addEventListener('keyup', e => { input.keys[e.code] = false; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') input.grabKey = false; });
   addEventListener('blur', () => { input.keys = {}; input.grabKey = false; });
 
+  // ---------- multiplayer: PeerJS, 4-digit codes, host relays, spatial voice ----------
+  // Drop-in hangout: the host shares a code; friends join, generate the same island from its seed,
+  // then everyone's moves, ropes, hooks, flags and pickups are mirrored. The host relays messages.
+  const NET = { on: false, host: false, inGame: false, code: '', id: '', hostId: '', peer: null, conns: {}, roster: [], pal: {}, puppets: {},
+    sendT: 0, snap: null, ui: 'idle', joinTry: 0, test: /[?&]nettest/.test(location.search) };
+  const NET_PREFIX = 'toytrash-isl-'; let NET_ICE = null;
+  const MP_OK = NET.test || location.protocol === 'file:' || /(^|\.)github\.io$|^localhost$|^127\./.test(location.hostname);
+  const r2 = v => Math.round(v * 100) / 100, v3a = v => [r2(v.x), r2(v.y), r2(v.z)], av3 = a => new V3(a[0], a[1], a[2]);
+  const STATES = ['ground', 'air', 'climb', 'rope'];
+  // same-browser test transport (open the page twice with ?nettest)
+  function Em() { this._h = {}; } Em.prototype.on = function (k, f) { (this._h[k] = this._h[k] || []).push(f); return this; }; Em.prototype.emit = function (k, ...a) { (this._h[k] || []).forEach(f => f(...a)); };
+  function BCConn(o, r) { Em.call(this); this.o = o; this.peer = r; this.open = false; } BCConn.prototype = Object.create(Em.prototype);
+  BCConn.prototype.ready = function () { if (this.open) return; this.open = true; setTimeout(() => this.emit('open'), 0); };
+  BCConn.prototype.send = function (d) { this.o.bc.postMessage({ to: this.peer, from: this.o.id, k: 'data', d }); };
+  BCConn.prototype.close = function () { this.o.bc.postMessage({ to: this.peer, from: this.o.id, k: 'close' }); };
+  function BCPeer(id) {
+    Em.call(this); this.id = id || 'g' + Math.random().toString(36).slice(2, 9); this.conns = {}; this.bc = new BroadcastChannel('toytrash-net');
+    this.bc.onmessage = e => {
+      const m = e.data; if (m.to !== this.id) return; const c = this.conns[m.from];
+      if (m.k === 'conn') { const n = new BCConn(this, m.from); this.conns[m.from] = n; this.emit('connection', n); n.ready(); this.bc.postMessage({ to: m.from, from: this.id, k: 'ok' }); }
+      else if (m.k === 'ok') c && c.ready(); else if (m.k === 'data') c && c.emit('data', m.d); else if (m.k === 'close') c && c.emit('close');
+    };
+    setTimeout(() => this.emit('open', this.id), 10);
+  }
+  BCPeer.prototype = Object.create(Em.prototype);
+  BCPeer.prototype.connect = function (id) { const c = new BCConn(this, id); this.conns[id] = c; this.bc.postMessage({ to: id, from: this.id, k: 'conn' }); setTimeout(() => { if (!c.open) this.emit('error', { type: 'peer-unavailable' }); }, 1500); return c; };
+  BCPeer.prototype.call = function () { return null; }; BCPeer.prototype.destroy = function () { try { this.bc.close(); } catch (e) {} };
+  async function makeIce() {
+    const stun = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+    try {
+      const user = Math.floor(Date.now() / 1000 + 24 * 3600) + ':toytrash';
+      const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('openrelayprojectsecret'), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+      const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(user))), H = 'staticauth.openrelay.metered.ca';
+      return stun.concat([{ urls: ['turn:' + H + ':80', 'turn:' + H + ':80?transport=tcp', 'turn:' + H + ':443', 'turns:' + H + ':443?transport=tcp'], username: user, credential: btoa(String.fromCharCode(...sig)) }]);
+    } catch (e) { return stun; }
+  }
+  async function loadPeer() {
+    if (NET.test) return; if (!NET_ICE) NET_ICE = await makeIce(); if (window.Peer) return;
+    await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('load')); document.head.append(sc); });
+  }
+  function makePeer(id, relayOnly) { if (NET.test) return new BCPeer(id); const o = { debug: 1, config: { iceServers: NET_ICE, iceTransportPolicy: relayOnly ? 'relay' : 'all' } }; return id ? new window.Peer(id, o) : new window.Peer(o); }
+  const lob = t => { ui.lobStatus.textContent = t || ''; };
+  const myPal = () => NET.pal[NET.id] ?? 0;
+
+  function netReset() {
+    voiceStop();
+    for (const c of Object.values(NET.conns)) try { c.close(); } catch (e) {}
+    try { NET.peer && NET.peer.destroy(); } catch (e) {}
+    for (const id of Object.keys(NET.puppets)) removePuppet(id);
+    Object.assign(NET, { on: false, host: false, inGame: false, code: '', id: '', hostId: '', peer: null, conns: {}, roster: [], pal: {}, puppets: {}, snap: null, ui: 'idle' });
+    recolor(P, PALS[0]); setBot(true); renderMP();
+  }
+  const errText = e => e.type === 'peer-unavailable' ? 'No game with that code. Check it and try again.'
+    : (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') ? "Can't reach the matchmaker. Check the internet and try again." : 'Something went wrong (' + e.type + '). Try again.';
+  const NET_BLOCKED = "Couldn't get through this Wi-Fi. School and office networks often block games like this. Switch to mobile data and try again.";
+  async function netHost() {
+    netReset(); NET.ui = 'hosting'; lob('Starting…');
+    try { await loadPeer(); } catch (e) { NET.ui = 'idle'; return lob("Couldn't load the multiplayer part. Check the internet and try again."); }
+    const go = () => {
+      const code = String(1000 + Math.floor(Math.random() * 9000)), peer = makePeer(NET_PREFIX + code); NET.peer = peer;
+      peer.on('open', id => {
+        Object.assign(NET, { on: true, host: true, inGame: true, code, id, hostId: id, roster: [{ id }], pal: { [id]: 0 } });
+        showRoom(); lob(''); voiceInit(); renderMP();
+      });
+      peer.on('connection', c => { if (Object.keys(NET.conns).length >= 3) { c.on('open', () => { c.send({ t: 'full' }); setTimeout(() => c.close(), 400); }); return; } attachConn(c); });
+      peer.on('call', voiceAnswer);
+      peer.on('error', e => { if (e.type === 'unavailable-id') { try { peer.destroy(); } catch (_) {} go(); return; } if (!NET.on) NET.ui = 'idle'; lob(errText(e)); });
+    };
+    go();
+  }
+  async function netJoin(code, relayOnly) {
+    code = String(code || '').trim(); if (!/^\d{4}$/.test(code)) return lob('Type the 4-digit code from the host.');
+    netReset(); NET.ui = 'joining'; NET.code = code; const try_ = NET.joinTry = (NET.joinTry || 0) + 1;
+    lob(relayOnly ? 'Trying again through a relay…' : 'Reaching the matchmaker…');
+    try { await loadPeer(); } catch (e) { NET.ui = 'idle'; return lob("Couldn't load the multiplayer part. Check the internet and try again."); }
+    const peer = makePeer(null, relayOnly); NET.peer = peer; let stage = 'server';
+    const live = () => try_ === NET.joinTry && !NET.on && NET.ui === 'joining';
+    const retry = () => { if (!live()) return; if (!relayOnly) netJoin(code, true); else { NET.ui = 'idle'; lob(NET_BLOCKED); } };
+    peer.on('open', id => {
+      if (!live()) return; NET.id = id; stage = 'game'; lob('Looking for game ' + code + '…');
+      const c = peer.connect(NET_PREFIX + code, { reliable: true }); attachConn(c); const t0 = performance.now();
+      const iv = setInterval(() => {
+        if (!live()) { clearInterval(iv); return; } const pc = c.peerConnection; if (!pc) return; const st = pc.iceConnectionState;
+        if (st === 'checking' || st === 'new') lob(relayOnly ? 'Found the game. Routing through a relay…' : 'Found the game. Opening a line through the network…');
+        if (st === 'failed' || st === 'disconnected' || performance.now() - t0 > (relayOnly ? 30000 : 15000)) { clearInterval(iv); retry(); }
+      }, 400);
+    });
+    peer.on('call', voiceAnswer);
+    peer.on('error', e => {
+      if (NET.on && e.type === 'peer-unavailable') return; if (!live()) return;
+      if (e.type === 'peer-unavailable') { NET.ui = 'idle'; return lob(errText(e)); }
+      if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error' || e.type === 'socket-closed') { NET.ui = 'idle'; return lob("Can't reach the matchmaker from this network. Switch to mobile data and try again."); }
+      retry();
+    });
+    setTimeout(() => { if (!live()) return; if (stage === 'server') { NET.ui = 'idle'; lob("Can't reach the matchmaker from this network. Switch to mobile data and try again."); } }, 15000);
+  }
+  function attachConn(c) {
+    c.on('open', () => {
+      NET.conns[c.peer] = c;
+      if (NET.host) {
+        NET.roster.push({ id: c.peer });
+        const used = Object.values(NET.pal); let k = 1; while (used.includes(k)) k++; NET.pal[c.peer] = k % 4;
+        sendRoster(); setBot(false);
+        try { c.send(startMsg(true)); } catch (e) {}
+        toast('A friend joined. They are building the island now', 2.6);
+      } else {
+        Object.assign(NET, { on: true, host: false, hostId: c.peer }); lob(''); voiceInit(); renderMP();
+      }
+    });
+    c.on('data', m => netData(m, c.peer));
+    c.on('close', () => netDrop(c.peer)); c.on('error', () => netDrop(c.peer));
+  }
+  function netSend(m) {
+    if (NET.host) { for (const c of Object.values(NET.conns)) try { c.send(m); } catch (e) {} }
+    else { const c = NET.conns[NET.hostId]; if (c) try { c.send(m); } catch (e) {} }
+  }
+  function relayTo(m, from) { for (const [id, c] of Object.entries(NET.conns)) if (id !== from) try { c.send(m); } catch (e) {} }
+  function sendRoster() { if (!NET.host) return; netSend({ t: 'roster', roster: NET.roster, pal: NET.pal }); applyPal(); renderRoom(); voiceMesh(); }
+  function netEvt(m) { if (NET.on && NET.inGame) netSend(m); }
+  function netDrop(id) {
+    if (!NET.on || !NET.conns[id] && id !== NET.hostId) return;
+    delete NET.conns[id]; voiceUnplug(id); removePuppet(id);
+    if (NET.host) {
+      NET.roster = NET.roster.filter(r => r.id !== id); delete NET.pal[id]; sendRoster();
+      toast('A friend left the island', 2.2);
+      if (NET.roster.length < 2) setBot(true);
+    } else if (id === NET.hostId) {
+      netReset(); toast('The host left. You can keep climbing with Buddy.', 3);
+    }
+  }
+  function netLeave() { if (NET.on) netSend({ t: 'bye' }); netReset(); }
+  function netData(m, from) {
+    const who = m.from || from;
+    switch (m.t) {
+      case 'roster':
+        if (NET.host) break;
+        NET.roster = m.roster; NET.pal = m.pal; applyPal(); renderRoom(); voiceMesh();
+        for (const id of Object.keys(NET.puppets)) if (!m.roster.some(r => r.id === id)) removePuppet(id);
+        break;
+      case 'start': if (!NET.host) netStartGame(m); break;
+      case 'p': if (NET.host) relayTo(Object.assign(m, { from: who }), from); applyPose(who, m); break;
+      case 'take': case 'rs': case 'rt': case 'rd': case 'rx': case 'hk': case 'fl':
+        if (NET.host) relayTo(Object.assign(m, { from: who }), from); applyEvt(who, m); break;
+      case 'full': lob('That game is full. Up to 4 climbers.'); netReset(); break;
+      case 'bye': netDrop(from); break;
+    }
+  }
+  function startMsg(catchup) { return { t: 'start', seed, snap: catchup && !genIt && info ? snapshot() : null }; }
+  function askNewIsland() {
+    if (NET.on && !NET.host) { toast('Only the host can start a new island'); return; }
+    if (NET.on && NET.host) { const s = Math.floor(Math.random() * 899999) + 100000; netSend({ t: 'start', seed: s }); newIsland(s); renderMP(); return; }
+    newIsland();
+  }
+  function netStartGame(m) {
+    NET.inGame = true; setBot(false); applyPal(); ui.lobby.hidden = true;
+    for (const c of Object.values(NET.puppets)) { c.hold = null; c.carry = null; }
+    NET.snap = m.snap || null;
+    newIsland(m.seed); renderMP();
+  }
+  // world snapshot for friends who join mid-climb
+  function snapshot() {
+    return {
+      taken: items.map((it, i) => it.taken ? i : -1).filter(i => i >= 0),
+      hooks: hooks.map(h => [v3a(h.p), v3a(h.n), h.a, h.b]),
+      flags: summits.map((s, i) => s.flag ? [i, v3a(s.flag.g.position), s.flag.col] : null).filter(Boolean),
+      ropes: ropes.map(r => ({ r: r.id, c: r.col, tied: r.tied, seg: r.seg, pts: r.pts.map(p => [r2(p.x), r2(p.y), r2(p.z), p.pin ? 1 : 0]) }))
+    };
+  }
+  function applySnap(s) {
+    for (const i of s.taken || []) if (items[i]) { items[i].taken = true; items[i].g.visible = false; }
+    for (const h of s.hooks || []) addHook(av3(h[0]), av3(h[1]), h[2], h[3]);
+    for (const f of s.flags || []) applyFlag(summits[f[0]], av3(f[1]), f[2], false, true);
+    for (const r of s.ropes || []) { const o = makeRopeObj(r.c, r.pts.map(q => pt(q[0], q[1], q[2], !!q[3])), r.r); o.tied = r.tied; o.seg = r.seg; }
+  }
+  function applyEvt(who, m) {
+    if (!NET.inGame || genIt) return;
+    const pup = NET.puppets[who] || getPuppet(who);
+    switch (m.t) {
+      case 'take': { const it = items[m.i]; if (it) it.taken = true; break; }
+      case 'rs': { const r = makeRopeObj(pup.col.rope, [pt(m.a[0], m.a[1], m.a[2], true), pt(m.h[0], m.h[1], m.h[2], true)], m.r); r.carrier = pup; pup.carry = r; break; }
+      case 'rt': { const r = ropeById(m.r); if (r) tieRopeAt(r, av3(m.b), null); if (pup.carry === r) pup.carry = null; break; }
+      case 'rx': { const r = ropeById(m.r); if (r) removeRope(r); if (pup.carry === r) pup.carry = null; break; }
+      case 'rd': {
+        let r = ropeById(m.r); if (!r) r = makeRopeObj(pup.col.rope, [], m.r);
+        r.pts = m.pts.map((q, i) => pt(q[0], q[1], q[2], i === 0)); r.carrier = null; r.tied = false; r.seg = SEG; if (pup.carry === r) pup.carry = null; break;
+      }
+      case 'hk': addHook(av3(m.p), av3(m.n), m.a, m.b); break;
+      case 'fl': applyFlag(summits[m.i], av3(m.p), m.c, false); break;
+    }
+  }
+  // ---- friends' climbers on your screen
+  function getPuppet(id) {
+    let c = NET.puppets[id]; if (c) return c;
+    c = newClimber('Friend', PALS[NET.pal[id] ?? 1], false); c.remote = true; c.nid = id; c.tgt = new V3(); c.fresh = true; addTag(c);
+    NET.puppets[id] = c;
+    if (genIt) { c.m.root.visible = false; c.m.limbG.visible = false; }
+    return c;
+  }
+  function removePuppet(id) { const c = NET.puppets[id]; if (!c) return; removeClimber(c, true); delete NET.puppets[id]; }
+  function applyPal() { recolor(P, PALS[myPal()]); for (const [id, c] of Object.entries(NET.puppets)) recolor(c, PALS[NET.pal[id] ?? 1]); }
+  function setBot(on) {
+    const has = climbers.includes(B);
+    if (on && !has) {
+      climbers.push(B); B.v.set(0, 0, 0); B.state = 'air'; B.hold = null; B.m.fresh = true;
+      B.p.copy(P.p).add(new V3(0, 1.4, 0)); B.lastSafe.copy(P.lastSafe); B.brain.far = 0; B.brain.lastD = 0;
+      B.m.root.visible = B.m.limbG.visible = mode !== 'gen' || !genIt;
+    } else if (!on && has) removeClimber(B, false);
+  }
+  function applyPose(who, m) {
+    if (!NET.inGame || genIt || m.sd !== seed) return;
+    const c = getPuppet(who);
+    if (m.ci != null) recolor(c, PALS[m.ci]);
+    c.tgt.set(m.x, m.y, m.z);
+    if (c.fresh || c.p.distanceToSquared(c.tgt) > 49) { c.p.copy(c.tgt); c.fresh = false; c.m.fresh = true; }
+    c.v.set(m.vx, m.vy, m.vz); c.facing.set(m.fx, 0, m.fz); if (c.facing.lengthSq() < 1e-4) c.facing.set(0, 0, 1); c.facing.normalize();
+    c.state = STATES[m.s] || 'air'; c.groundT = c.state === 'ground' ? 0.12 : 0;
+    c.wallN.set(m.nx, m.ny, m.nz); c.sprinting = !!m.sp; c.cheer = m.ch ? 0.4 : 0; c.hurtT = m.hu ? 0.4 : 0; c.mouth = m.mo || 0; c.rope = m.rl;
+    if (m.h) { const r = ropeById(m.h[0]); c.hold = r ? { rope: r, u: Math.min(m.h[1], r.pts.length - 1.001) } : null; } else c.hold = null;
+    if (m.cr) { const r = ropeById(m.cr); if (r && r.carrier !== c) { r.carrier = c; c.carry = r; } }
+    c.m.root.visible = true;
+  }
+  function netFrame(dt) {
+    if (!NET.on || !NET.inGame) return;
+    if ((mode === 'play' || mode === 'map') && !genIt) {
+      NET.sendT -= dt;
+      if (NET.sendT <= 0) {
+        NET.sendT = 1 / 15; const p = P;
+        netSend({ t: 'p', sd: seed, x: r2(p.p.x), y: r2(p.p.y), z: r2(p.p.z), vx: r2(p.v.x), vy: r2(p.v.y), vz: r2(p.v.z), fx: r2(p.facing.x), fz: r2(p.facing.z),
+          s: Math.max(0, STATES.indexOf(p.state)), nx: r2(p.wallN.x), ny: r2(p.wallN.y), nz: r2(p.wallN.z),
+          h: p.hold ? [p.hold.rope.id, r2(p.hold.u)] : 0, cr: p.carry ? p.carry.id : 0, rl: Math.round(p.rope * 10) / 10,
+          sp: p.sprinting ? 1 : 0, ch: p.cheer > 0 ? 1 : 0, hu: p.hurtT > 0 ? 1 : 0, mo: r2(p.mouth || 0), ci: myPal() });
+      }
+    }
+    const k = 1 - Math.exp(-dt * 12);
+    for (const c of Object.values(NET.puppets)) {
+      if (!c.tgt) continue;
+      c.tgt.addScaledVector(c.v, dt * 0.5);
+      if (c.p.distanceToSquared(c.tgt) > 36) c.p.copy(c.tgt); else c.p.lerp(c.tgt, k);
+      if (c.state === 'climb' || c.state === 'rope') c.climbPh += dt * Math.min(4, c.v.length()) * 3;
+      if (c.tag) { const d = c.p.distanceTo(cam.position); c.tag.scale.setScalar(clamp(d / 10, 1, 6)); c.tag.visible = mode !== 'gen'; }
+    }
+  }
+
+  // ---- voice: everyone hears everyone, from where their climber stands
+  const AC = { ctx: null };
+  function audioInit() {
+    if (AC.ctx) { if (AC.ctx.state === 'suspended') AC.ctx.resume(); return; }
+    try { AC.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC.ctx = null; }
+  }
+  const VOICE = { local: null, calls: {}, nodes: {}, an: null, buf: null, muted: false, ready: null };
+  function silentStream() { audioInit(); return AC.ctx ? AC.ctx.createMediaStreamDestination().stream : new MediaStream(); }
+  function voiceInit() {
+    if (VOICE.ready) return VOICE.ready; audioInit();
+    VOICE.ready = (async () => {
+      if (NET.test || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      try { VOICE.local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+      catch (e) { VOICE.local = null; toast('No microphone. You can still hear your friends.', 2.6); return; }
+      if (AC.ctx) { const an = AC.ctx.createAnalyser(); an.fftSize = 512; AC.ctx.createMediaStreamSource(VOICE.local).connect(an); VOICE.an = an; VOICE.buf = new Float32Array(an.fftSize); }
+      syncMic();
+    })();
+    VOICE.ready.then(voiceMesh); return VOICE.ready;
+  }
+  function voiceMesh() {
+    if (!NET.peer || NET.test || !VOICE.ready) return;
+    VOICE.ready.then(() => {
+      for (const r of NET.roster) {
+        if (r.id === NET.id || VOICE.calls[r.id] || !(NET.id < r.id)) continue;
+        try { const call = NET.peer.call(r.id, VOICE.local || silentStream()); if (call) voiceAttach(call); } catch (e) {}
+      }
+    });
+  }
+  function voiceAnswer(call) { (VOICE.ready || voiceInit()).then(() => { try { call.answer(VOICE.local || silentStream()); voiceAttach(call); } catch (e) {} }); }
+  function voiceAttach(call) { VOICE.calls[call.peer] = call; call.on('stream', st => voicePlay(call.peer, st)); call.on('close', () => voiceUnplug(call.peer)); call.on('error', () => voiceUnplug(call.peer)); }
+  function voicePlay(id, st) {
+    audioInit(); const ctx = AC.ctx; if (!ctx) return; voiceUnplug(id);
+    const el = new Audio(); el.muted = true; el.autoplay = true; el.playsInline = true; el.srcObject = st; el.play && el.play().catch(() => {});
+    const src = ctx.createMediaStreamSource(st), g = ctx.createGain(), pan = ctx.createPanner();
+    g.gain.value = 1.8; pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 4; pan.maxDistance = 120; pan.rolloffFactor = 0.7;
+    src.connect(g); g.connect(pan); pan.connect(ctx.destination); VOICE.nodes[id] = { src, g, pan, el };
+  }
+  function voiceUnplug(id) {
+    const n = VOICE.nodes[id]; if (n) { try { n.src.disconnect(); n.pan.disconnect(); n.el.srcObject = null; } catch (e) {} delete VOICE.nodes[id]; }
+    const c = VOICE.calls[id]; if (c) { delete VOICE.calls[id]; try { c.close(); } catch (e) {} }
+  }
+  function voiceStop() {
+    for (const id of Object.keys(VOICE.nodes).concat(Object.keys(VOICE.calls))) voiceUnplug(id);
+    if (VOICE.local) VOICE.local.getTracks().forEach(t => t.stop());
+    Object.assign(VOICE, { local: null, an: null, ready: null });
+  }
+  function syncMic() {
+    if (VOICE.local) VOICE.local.getAudioTracks().forEach(t => { t.enabled = !VOICE.muted; });
+    ui.bMic.textContent = ui.bLobMic.textContent = VOICE.muted ? 'Mic off' : 'Mic on'; ui.bMic.classList.toggle('off', VOICE.muted);
+  }
+  const _fw = new V3();
+  function setPos(param3, v) {
+    if (param3.positionX) { const t = AC.ctx.currentTime; param3.positionX.setTargetAtTime(v.x, t, 0.05); param3.positionY.setTargetAtTime(v.y, t, 0.05); param3.positionZ.setTargetAtTime(v.z, t, 0.05); }
+    else param3.setPosition(v.x, v.y, v.z);
+  }
+  function voiceFrame(dt) {
+    let lv = 0;
+    if (VOICE.an && !VOICE.muted) { VOICE.an.getFloatTimeDomainData(VOICE.buf); let s = 0; for (const v of VOICE.buf) s += v * v; lv = clamp((Math.sqrt(s / VOICE.buf.length) - 0.012) * 9, 0, 1); }
+    P.mouth += (lv - P.mouth) * Math.min(1, dt * 18);
+    if (!AC.ctx || !Object.keys(VOICE.nodes).length) return;
+    const L = AC.ctx.listener; cam.getWorldDirection(_fw);
+    if (L.positionX) { setPos(L, cam.position); const t = AC.ctx.currentTime; L.forwardX.setTargetAtTime(_fw.x, t, 0.05); L.forwardY.setTargetAtTime(_fw.y, t, 0.05); L.forwardZ.setTargetAtTime(_fw.z, t, 0.05); L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
+    else { L.setPosition(cam.position.x, cam.position.y, cam.position.z); L.setOrientation(_fw.x, _fw.y, _fw.z, 0, 1, 0); }
+    for (const [id, n] of Object.entries(VOICE.nodes)) { const c = NET.puppets[id]; if (c) setPos(n.pan, tmpA.set(c.p.x, c.p.y + 0.7, c.p.z)); }
+  }
+
+  // ---- lobby screens
+  function showLobby() { ui.lobby.hidden = false; if (NET.on) showRoom(); else { ui.lobStart.hidden = false; ui.lobRoom.hidden = true; ui.lobTitle.textContent = 'Play with friends'; ui.bLobLeave.hidden = true; ui.bLobMic.hidden = true; } }
+  function showRoom() { ui.lobby.hidden = false; ui.lobStart.hidden = true; ui.lobRoom.hidden = false; ui.bLobLeave.hidden = false; ui.bLobMic.hidden = false; renderRoom(); }
+  function renderRoom() {
+    if (!NET.on) return;
+    ui.lobTitle.textContent = NET.host ? 'Your island' : 'On a friend’s island';
+    ui.lobCode.textContent = NET.code;
+    ui.lobPlayers.innerHTML = NET.roster.map((r, i) => {
+      const pal = PALS[NET.pal[r.id] ?? i % 4];
+      return `<li><i style="background:${pal.hat}"></i><span>${r.id === NET.id ? 'You' : 'Friend'}${r.id === NET.hostId ? ' · host' : ''}</span></li>`;
+    }).join('');
+    const alone = NET.roster.length < 2;
+    ui.lobNote.textContent = NET.host
+      ? (alone ? 'Tell friends to tap Play with friends, then type this code. Up to 4 climbers. Buddy keeps you company until someone joins.' : 'Friends can drop in any time with the code. New island restarts it for everyone.')
+      : 'You are on the host’s island. Only the host can start a new one.';
+    syncMic();
+  }
+  function renderMP() {
+    const ready = !ui.bStart.hidden;
+    ui.bFriends.hidden = !MP_OK || !ready;
+    ui.bFriends.textContent = NET.on ? 'Friends' : 'Play with friends';
+    const guest = NET.on && !NET.host;
+    if (guest) { ui.bRegen.hidden = true; }
+    else if (ready) ui.bRegen.hidden = false;
+    ui.bNew.hidden = guest || mode === 'gen';
+    $('bWinNew').hidden = guest;
+    ui.bCode.hidden = !NET.on || mode === 'gen'; ui.bCode.textContent = 'Code ' + NET.code;
+    ui.bMic.hidden = !NET.on || mode === 'gen';
+  }
+  ui.bFriends.addEventListener('click', () => { audioInit(); showLobby(); lob(''); });
+  ui.bCode.addEventListener('click', () => { audioInit(); showLobby(); });
+  ui.bHost.addEventListener('click', () => { audioInit(); netHost(); });
+  ui.bJoin.addEventListener('click', () => { audioInit(); netJoin(ui.joinCode.value); });
+  ui.joinCode.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { audioInit(); netJoin(ui.joinCode.value); } });
+  ui.joinCode.addEventListener('keyup', e => e.stopPropagation());
+  ui.bLobBack.addEventListener('click', () => { ui.lobby.hidden = true; if (NET.ui === 'joining' && !NET.on) { NET.joinTry++; netReset(); } });
+  ui.bLobLeave.addEventListener('click', () => { netLeave(); showLobby(); lob('You left. You are back on your own island with Buddy.'); });
+  ui.bMic.addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMic(); });
+  ui.bLobMic.addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMic(); });
+  document.addEventListener('pointerdown', audioInit, { capture: true });
+
   function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = cam.aspect < 1 ? 80 : 64; cam.updateProjectionMatrix(); }
   addEventListener('resize', resize); resize();
-  window.__tti = { P, B, G, ropes, hooks, climbers, startPlay, startRope, tieRope, dropRope, placeHook, setYaw: (v, p) => { yaw = v; if (p !== undefined) pitch = p; lookHold = 99; }, get mode() { return mode; }, finish: () => ui.bSkip.click(), get summits() { return summits; } };
+  window.__tti = { P, B, G, ropes, hooks, climbers, NET, items, startPlay, startRope, tieRope, dropRope, placeHook, setYaw: (v, p) => { yaw = v; if (p !== undefined) pitch = p; lookHold = 99; }, get mode() { return mode; }, finish: () => ui.bSkip.click(), get summits() { return summits; } };
+  renderMP();
   newIsland();
   requestAnimationFrame(frame);
 })();
