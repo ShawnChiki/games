@@ -112,6 +112,9 @@ h1{font-family:var(--f-display);font-weight:400;font-size:clamp(56px,14vw,104px)
 .menu-btns{display:flex;flex-direction:column;gap:12px;width:100%;margin-top:10px}
 .menu-btns button{width:100%}
 .btn-ghost:disabled{opacity:.55;cursor:default}
+#setup,#lobby{align-items:flex-end;background:linear-gradient(to bottom,rgba(21,17,13,0) 0%,rgba(21,17,13,0) 26%,rgba(21,17,13,.72) 60%)}
+#setup .parch,#lobby .parch{max-height:66%}
+@media (min-width:900px){#setup,#lobby{align-items:center;justify-content:flex-end;padding-right:5vw}#setup .parch,#lobby .parch{max-height:100%}}
 .soon{display:inline-block;margin-left:8px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--stone-dim)}
 .parch{width:min(100%,460px);max-height:100%;overflow:hidden;color:var(--paper-ink);border-radius:3px;padding:26px 24px 22px;display:flex;flex-direction:column;gap:12px;
   background:radial-gradient(ellipse at 50% 40%,#efe6cf 0%,#e6d9bb 70%,#d6c49d 100%);box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 0 60px rgba(120,84,40,.22)}
@@ -858,6 +861,7 @@ function buildLevel(plan){
     _m.makeTranslation((x0+x1)/2,h,(z0+z1)/2).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(-dz,dx))).multiply(new THREE.Matrix4().makeTranslation(0,0,-th/2));
     B[mat].geo(g,_m,[.25,.25]);g.dispose();}
   const cylAt=(x,z,rr,y0,y1,mat,seg)=>{const g=new THREE.CylinderGeometry(rr,rr,y1-y0,seg||16,1);_m.makeTranslation(x,(y0+y1)/2,z);B[mat].geo(g,_m,[2*Math.PI*rr*B[mat].s,(y1-y0)*B[mat].s]);g.dispose();};
+  const shellMeshes=[];
   const LX=WX+WT,LN=WN+WT,maxY=Math.max(...plan.nodes.map(n=>n.y));
   // floor, ceiling, ribs (the two directions at slightly different depths so the crossings never flicker)
   S(-LX,FLOOR_Y-2,-LN,LX,FLOOR_Y,ZB1,'floor','floor');
@@ -1176,14 +1180,14 @@ function buildLevel(plan){
     put(2,[[3.2,28,ZW0-.04],[-3.2,28,ZW0-.04],[-3.2,28+h,ZW0-.04],[3.2,28+h,ZW0-.04]],[0,0,-1]);
     put(3,[[-WX+.04,yN,c+3.2],[-WX+.04,yN,c-3.2],[-WX+.04,yN+h,c-3.2],[-WX+.04,yN+h,c+3.2]],[1,0,0]);
     group.add(new THREE.Mesh(nb.build(),new THREE.MeshStandardMaterial({map:numeralTex(),transparent:true,depthWrite:false,roughness:.95,polygonOffset:true,polygonOffsetFactor:-2})));}
-  for(const k in B){const g=B[k].build();if(!g)continue;const m=new THREE.Mesh(g,MAT[k]);m.castShadow=!(k==='shell'||k==='floor'||k==='glow');m.receiveShadow=k!=='glow';group.add(m);}
+  for(const k in B){const g=B[k].build();if(!g)continue;const m=new THREE.Mesh(g,MAT[k]);m.castShadow=!(k==='shell'||k==='floor'||k==='glow');m.receiveShadow=k!=='glow';if(k==='shell')shellMeshes.push(m);group.add(m);}
   // light shafts from the windows
   const shaftMat=new THREE.MeshBasicMaterial({color:0xffe6c2,transparent:true,opacity:.065,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,alphaMap:gradTex()});
   const travel=sunDir.clone().negate();
   for(const wz of WINZ){const len=96;const sh=new THREE.Mesh(new THREE.CylinderGeometry(2.4,6.5,len,12,1,true),shaftMat);
     sh.position.set(-WX+.5,WY,wz).addScaledVector(travel,len/2);sh.quaternion.setFromUnitVectors(new V3(0,1,0),sunDir);group.add(sh);}
   scene.add(group);
-  return {group,plan,gateGroup,exitBoxes,exitPositions,spawnSpots,maxY};
+  return {group,plan,gateGroup,exitBoxes,exitPositions,spawnSpots,maxY,shellMeshes,winGroup};
 }
 function drawCellPlan(plan){
   const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
@@ -1960,7 +1964,11 @@ function spawnSomewhere(delay){
 const game={state:'title',total:180,time:180,deaths:0,announced:{},seenBeam:false,seenWallrun:false,cell:0,deadT:0,cardShown:false,gateY:0,gateTarget:0,popTimer:0,prevState:'play',startedOnce:false};
 function inCell(ch){return ch&&!ch.dead&&ch.pos.z>ZW1-.2&&ch.pos.y>-.5&&ch.pos.y<3;}
 function setTag(n){$('tagNum').textContent=n;}
-function newPrison(seed){
+const BKEYS=['width','depth','height','arch','density','exits','routes'],bkey=()=>BKEYS.map(k=>cfg[k]).join(',');
+let prevKey='',prevTO=0;
+function schedulePreview(){applyFog();if(game.state!=='title'||bkey()===prevKey)return;clearTimeout(prevTO);prevTO=setTimeout(()=>{if(game.state==='title'&&bkey()!==prevKey)newPrison((Math.random()*1e9)|0);},380);}
+function previewing(){return game.state==='title'&&(!$('setup').hidden||!$('lobby').hidden);}
+function newPrison(seed){prevKey=bkey();
   disposeLevel();sfx.stopDoors();for(const c of chars.slice())removeChar(c);chars=[];player=null;puddles.length=0;pLife.fill(0);crumbs=[];
   northLight.visible=southLight.visible=!!cfg.wayfind;
   setDims();applyFog();
@@ -2183,7 +2191,7 @@ function netData(m,from){
 // ---- lobby screens
 function showLobbyStart(){showScreen('lobby');$('lobStart').hidden=false;$('lobRoom').hidden=true;$('lobGo').hidden=$('readyBtn').hidden=$('micBtn').hidden=true;$('lobTitle').textContent='Break out together';}
 function showRoom(){showScreen('lobby');$('lobSettings').dataset.mode='';$('lobSettings').dataset.key='';$('lobStart').hidden=true;$('lobRoom').hidden=false;$('micBtn').hidden=false;renderRoom();}
-function renderRoom(){
+function renderRoom(){schedulePreview();
   if(!NET.on)return;$('lobCode').textContent=NET.code;$('lobTitle').textContent=NET.host?'Your game':'In the lobby';
   $('lobPlayers').innerHTML=NET.roster.map((r,i)=>`<li><span>${r.id===NET.id?'You':'Inmate '+(i+1)}${r.id===NET.hostId?' · host':''}</span><span class="st ${NET.ready[r.id]?'ok':''}">${NET.ready[r.id]?'Ready':'Not ready'}</span></li>`).join('');
   const all=NET.roster.every(r=>NET.ready[r.id]),alone=NET.roster.length<2;
@@ -2334,11 +2342,11 @@ function toMenu(){
   try{speechSynthesis.cancel();}catch(e){}sfx.stopDoors();sfx.mode('title');
   game.state='title';game.startedOnce=false;newPrison((Math.random()*1e9)|0);showScreen('menu');
 }
-$('spBtn').onclick=()=>{sfx.init();if(sfx.ctx&&sfx.ctx.state==='suspended')sfx.ctx.resume();renderSettings($('settings'));showScreen('setup');};
+$('spBtn').onclick=()=>{sfx.init();if(sfx.ctx&&sfx.ctx.state==='suspended')sfx.ctx.resume();renderSettings($('settings'),'set',false,schedulePreview);showScreen('setup');schedulePreview();};
 $('howBtn').onclick=()=>showScreen('howto');
 $('howClose').onclick=()=>showScreen('menu');
 $('setupBack').onclick=()=>showScreen('menu');
-$('goBtn').onclick=()=>{const mi=$('set-minutes');if(mi){const v=clamp(parseFloat(mi.value)||3,.5,30);cfg.minutes=v;}newPrison((Math.random()*1e9)|0);startRun();};
+$('goBtn').onclick=()=>{const mi=$('set-minutes');if(mi){const v=clamp(parseFloat(mi.value)||3,.5,30);cfg.minutes=v;}clearTimeout(prevTO);if(bkey()!==prevKey||!LV)newPrison((Math.random()*1e9)|0);else{game.total=cfg.minutes*60;game.time=game.total;}startRun();};
 $('menuBtn').onclick=()=>{if(NET.on)netLeave();toMenu();};
 $('pauseBtn').onclick=()=>togglePause();
 $('resumeBtn').onclick=()=>togglePause();
@@ -2362,8 +2370,17 @@ $('soundBtn').onclick=()=>{sfx.setOn(!sfx.on);$('soundBtn').textContent='Sound: 
 
 /* ---------- camera ---------- */
 const _cd=new V3(),_ct=new V3();
-let DBGFLY=null;
+let DBGFLY=null,CAM_FAR=320;
 function updateCamera(dt){if(DBGFLY){camera.position.copy(DBGFLY.p);camera.lookAt(DBGFLY.t);return;}
+  if(previewing()){
+    // a cutaway model: vault and outer walls lifted off, seen from above as the camera circles
+    const W=innerWidth,H=innerHeight,narrow=W<900,zc=(WALL-WN)/2,ext=Math.max(WX,(WN+WALL)/2),t=.6+Math.sin(simT*.05)*.55,R=ext*(narrow?Math.max(3,2.5*H/W):2.6),ym=(FLOOR_Y+CEIL_Y)/2;
+    if(camera.far<900){camera.far=900;camera.updateProjectionMatrix();}
+    camera.position.set(Math.sin(t)*R,CEIL_Y+R*.42,zc+Math.cos(t)*R);camera.lookAt(0,ym+3,zc);
+    if(LV&&LV.shellMeshes&&LV.shellMeshes[0].visible){for(const m of LV.shellMeshes)m.visible=false;LV.winGroup.visible=false;}
+    const f=FOGS[cfg.fog]||FOGS[1];scene.fog.density=f[0]*.13;
+    const oy=narrow?H*.355:0,ox=narrow?0:-W*.18;if(!camera.view||!camera.view.enabled||camera.view.offsetY!==oy||camera.view.offsetX!==ox||camera.view.fullWidth!==W)camera.setViewOffset(W,H,ox,oy,W,H);return;}
+  if(camera.view&&camera.view.enabled){camera.clearViewOffset();camera.far=CAM_FAR;camera.updateProjectionMatrix();if(LV&&LV.shellMeshes)for(const m of LV.shellMeshes)m.visible=true;if(LV&&LV.winGroup)LV.winGroup.visible=true;applyFog();}
   if(game.state==='title'){const t=simT*.12;camera.position.set(Math.sin(t)*6,8.5+Math.sin(t*.7),33);camera.lookAt(Math.sin(t*.8)*4,4,0);return;}
   if(!player)return;
   if(game.state==='dead'&&game.deadPhase==='look'){const b=player.joints[2],k=Math.min(1,game.lookT/6),e=k*k*(3-2*k),hgt=2.4+e*17;
@@ -2472,7 +2489,7 @@ function setQuality(l){
   renderer.setPixelRatio([Math.min(dpr,isTouch?1.5:2),Math.min(dpr,1),.8,.65][l]);resize();
   if(l>=1)for(const k in I)I[k].castShadow=false;
   if(l>=2&&renderer.shadowMap.enabled){renderer.shadowMap.enabled=false;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);});}
-  if(l>=3){camera.far=120;camera.updateProjectionMatrix();applyFog();}
+  if(l>=3){CAM_FAR=120;camera.far=120;camera.updateProjectionMatrix();applyFog();}
 }
 function timerEvents(){
   const t=game.time,A=game.announced;
