@@ -703,7 +703,7 @@ function setHairColor(i){const [ra,rb]=HAIR[i%HAIR.length],a=new THREE.Color(ra)
 const E={};
 {
   const mc=new MarchingCubes(48,gummyMat,false,false,60000);mc.isolation=80;mc.reset();const sub=12;
-  for(const b of[[0.5,0.43,0.5,2.0],[0.5,0.36,0.56,0.5],[0.5,0.55,0.5,0.35],[0.5,0.655,0.5,1.05],[0.37,0.81,0.5,0.11],[0.63,0.81,0.5,0.11]])mc.addBall(b[0],b[1],b[2],b[3],sub);mc.update();
+  for(const b of[[0.5,0.43,0.5,2.0],[0.5,0.36,0.56,0.5],[0.5,0.53,0.47,0.3],[0.5,0.655,0.5,1.05],[0.37,0.81,0.5,0.11],[0.63,0.81,0.5,0.11]])mc.addBall(b[0],b[1],b[2],b[3],sub);mc.update();
   const n=mc.count,g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(mc.positionArray.slice(0,n*3),3));g.setAttribute('normal',new THREE.BufferAttribute(mc.normalArray.slice(0,n*3),3));
   g.translate(0,0.28,0);g.scale(1.42,1.42,1.42);
   let headFront=0.38,headTop=1.05,headW=0.3;{const pa=g.attributes.position;headFront=0;headTop=0;headW=0;for(let i=0;i<pa.count;i++){const x=pa.getX(i),y=pa.getY(i),z=pa.getZ(i);if(Math.abs(y-0.84)<0.04&&Math.abs(z)<0.1)headW=Math.max(headW,Math.abs(x));if(Math.abs(y-0.84)<0.05&&Math.abs(x)<0.05)headFront=Math.max(headFront,z);if(Math.abs(x)<0.08&&Math.abs(z)<0.08)headTop=Math.max(headTop,y);}}
@@ -716,7 +716,7 @@ const E={};
     const a1=mesh(new THREE.BoxGeometry(0.42,0.11,0.3),am);a1.position.y=-0.46;an.add(a1);const a2=mesh(new THREE.BoxGeometry(0.2,0.14,0.2),am);a2.position.y=-0.34;an.add(a2);const a3=mesh(new THREE.BoxGeometry(0.5,0.11,0.26),am);a3.position.y=-0.22;an.add(a3);
     an.visible=false;hip.add(an);E.anvils.push(an);
     const sh=new THREE.Group();sh.position.set(s*0.36,0.2,0.03);E.scaleG.add(sh);sh.add(mesh(limb(0.13,0.16),gummyMat));sh.rotation.z=s*0.8;E.arms.push(sh);}
-  const face=new THREE.Group();face.position.set(0,0.84,headFront-0.468+0.02);face.scale.setScalar(1.2);E.scaleG.add(face);E.face=face;
+  const face=new THREE.Group();face.position.set(0,0.87,headFront-0.468+0.17);face.scale.setScalar(1.28);E.scaleG.add(face);E.face=face;
   // a kid's peachy face peeking out of the gummy-bear costume hood
   const skin=new THREE.MeshStandardMaterial({color:'#ffd9c6',roughness:0.5,emissive:'#ff9c8a',emissiveIntensity:0.07});
   const fc=mesh(new THREE.SphereGeometry(1,32,24),skin,false);fc.scale.set(0.225,0.225,0.12);fc.position.set(0,0,0.27);face.add(fc);
