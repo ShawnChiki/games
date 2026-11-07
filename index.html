@@ -2,86 +2,160 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1a1446">
 <title>Chiki Games</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
 <style>
-  /* Chiki Games: Sean's phone games. Same Memphis look as the XR launcher, in cobalt.
-     To add a game: put an <a class="card"> in .cards (see CLAUDE.md). */
+  /* Chiki Games: Sean's phone games.
+     Look = "arcade night": deep indigo, dot grid, chunky rounded keycap cards that press down, Lilita One + Nunito.
+     (Chiki XR is the cream Memphis one. Keep the two different.) To add a game: see CLAUDE.md. */
   :root{
-    --paper:#fff3dc; --ink:#111; --soft:#4a4458; --white:#fffdf7;
-    --pink:#ff3e8a; --yellow:#ffd400; --teal:#00c2b3; --cobalt:#2f5cff; --violet:#9b5cff;
-    color-scheme: light;
+    --night:#1a1446; --night2:#251d5e; --white:#fffaf2; --ink:#1a1446; --soft:#5a537a;
+    --lime:#c6ff3d; --sky:#3dd6ff; --hot:#ff4fa3; --sun:#ffc23d;
+    color-scheme: dark;
   }
   *{box-sizing:border-box}
-  html{background:var(--paper)}
+  html{background:var(--night)}
   body{
-    margin:0; min-height:100vh; color:var(--ink); background-color:var(--paper);
-    font-family:Rubik,system-ui,-apple-system,"Segoe UI",sans-serif; padding:28px 16px 60px;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cpath d='M20 40 q10-14 20 0 t20 0 t20 0' fill='none' stroke='%23ff3e8a' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='200' cy='38' r='6' fill='%232f5cff'/%3E%3Cpath d='M150 120 l16 28 h-32z' fill='none' stroke='%23111' stroke-width='3'/%3E%3Ccircle cx='50' cy='170' r='12' fill='none' stroke='%2300c2b3' stroke-width='4'/%3E%3Cpath d='M180 210 l10-10 l10 10 l10-10 l10 10' fill='none' stroke='%23ffd400' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='110' cy='230' r='4' fill='%23111'/%3E%3Crect x='224' y='120' width='14' height='14' fill='%239b5cff' transform='rotate(20 231 127)'/%3E%3C/svg%3E");
-    background-size:260px 260px;
+    margin:0; min-height:100vh; color:var(--white); background-color:var(--night);
+    background-image:radial-gradient(rgba(255,255,255,.09) 1.6px, transparent 1.8px);
+    background-size:22px 22px;
+    font-family:Nunito,system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding:calc(18px + env(safe-area-inset-top)) 16px 60px;
   }
-  .wrap{max-width:960px; margin:0 auto}
-  h1{margin:0; font-family:Bungee,Rubik,sans-serif; font-weight:400; font-size:clamp(44px,12vw,84px); line-height:.95;
-    text-shadow:5px 5px 0 var(--yellow)}
-  h1 span{color:var(--cobalt)}
-  .sub{margin:12px 0 0; font-size:16px; font-weight:600; color:var(--soft)}
-  .sub b{color:var(--ink); background:var(--yellow); border:2px solid var(--ink); padding:1px 6px}
-  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:24px; margin-top:34px}
+  .wrap{max-width:980px; margin:0 auto}
+
+  /* switch between Sean's sites */
+  .sites{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px}
+  .sites a{
+    text-decoration:none; font-weight:900; font-size:14px; padding:8px 14px; border-radius:999px;
+    color:var(--white); background:var(--night2); border:2px solid rgba(255,255,255,.18);
+  }
+  .sites a[aria-current]{color:var(--ink); background:var(--lime); border-color:var(--lime)}
+
+  h1{
+    margin:0; font-family:"Lilita One",Nunito,sans-serif; font-weight:400; letter-spacing:.01em;
+    font-size:clamp(50px,14vw,96px); line-height:.92; color:var(--white);
+    text-shadow:0 4px 0 var(--hot),0 8px 0 var(--sky),0 12px 0 rgba(0,0,0,.35);
+  }
+  .sub{margin:22px 0 0; font-size:16px; font-weight:800; color:rgba(255,250,242,.75)}
+
+  /* sections */
+  section{margin-top:40px}
+  .head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px}
+  .head h2{margin:0; font-family:"Lilita One",Nunito,sans-serif; font-weight:400; font-size:clamp(26px,7vw,34px); line-height:1}
+  .head .count{font-weight:900; font-size:13px; color:var(--ink); background:var(--c); border-radius:999px; padding:3px 10px}
+  .note{margin:0 0 18px; font-size:15px; font-weight:600; color:rgba(255,250,242,.7)}
+  .mp{--c:var(--lime)} .phone{--c:var(--sky)}
+  .mp .head h2{color:var(--lime)} .phone .head h2{color:var(--sky)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:26px 22px}
+
+  /* keycap card: rounded, colored edge underneath, presses down */
   .card{
     position:relative; display:block; text-decoration:none; color:var(--ink);
-    background:var(--white); border:3px solid var(--ink); padding:18px 18px 16px;
-    box-shadow:7px 7px 0 var(--cobalt),7px 7px 0 3px var(--ink); transition:transform .15s, box-shadow .15s;
+    background:var(--white); border-radius:22px; padding:18px 18px 16px;
+    box-shadow:0 8px 0 var(--c),0 14px 22px rgba(0,0,0,.35);
+    transition:transform .12s, box-shadow .12s;
   }
-  .card:hover,.card:focus-visible{outline:none; transform:translate(-3px,-3px) rotate(-.6deg); box-shadow:11px 11px 0 var(--cobalt),11px 11px 0 3px var(--ink)}
-  .card:active{transform:translate(3px,3px); box-shadow:2px 2px 0 var(--cobalt),2px 2px 0 3px var(--ink)}
-  .card b{display:block; font-size:24px; font-weight:800; line-height:1.15}
-  .card .blurb{display:block; margin-top:6px; font-size:15px; line-height:1.4; color:var(--soft)}
-  .card .up{display:block; margin-top:12px; padding-top:10px; border-top:3px dotted var(--ink); font-size:13px}
-  .card .when{display:inline-block; font-weight:800; background:var(--ink); color:var(--white); padding:3px 8px}
-  .card .msg{display:block; margin-top:7px; font-size:14px; line-height:1.4}
-  .card .msg::before{content:"What's new: "; font-weight:800}
-  footer{margin-top:44px}
-  footer span{font-size:14px; background:var(--white); border:2px solid var(--ink); padding:6px 10px}
+  a.card:hover,a.card:focus-visible{outline:none; transform:translateY(-2px); box-shadow:0 10px 0 var(--c),0 18px 26px rgba(0,0,0,.4)}
+  a.card:active{transform:translateY(6px); box-shadow:0 2px 0 var(--c),0 4px 8px rgba(0,0,0,.3)}
+  .card b{display:block; font-family:"Lilita One",Nunito,sans-serif; font-weight:400; font-size:26px; line-height:1.05}
+  .card .blurb{display:block; margin-top:7px; font-size:15px; font-weight:600; line-height:1.4; color:var(--soft)}
+  .card .up{display:block; margin-top:13px; padding-top:11px; border-top:2px dashed rgba(26,20,70,.2); font-size:13px}
+  .card .when{display:inline-block; font-weight:900; background:var(--ink); color:var(--white); padding:3px 10px; border-radius:999px}
+  .card .msg{display:block; margin-top:7px; font-size:14px; font-weight:600; line-height:1.4}
+  .card .msg::before{content:"What's new: "; font-weight:900}
+
+  /* multiplayer · multiplatform: one card, a button per device */
+  .mp .card{padding-top:16px}
+  .plats{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px}
+  .plat{
+    flex:1 1 130px; display:flex; align-items:center; gap:8px; text-decoration:none;
+    font-weight:900; font-size:15px; color:var(--ink); padding:10px 12px; border-radius:14px;
+    background:var(--p); box-shadow:0 4px 0 var(--ink); transition:transform .1s, box-shadow .1s;
+  }
+  .plat small{display:block; font-size:12px; font-weight:800; opacity:.75}
+  .plat:active{transform:translateY(3px); box-shadow:0 1px 0 var(--ink)}
+  .plat svg{flex:none}
+  .plat.ph{--p:var(--sky)} .plat.qu{--p:var(--lime)}
+
+  footer{margin-top:48px; font-size:14px; font-weight:700; color:rgba(255,250,242,.6)}
   @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Chiki <span>Games</span></h1>
+  <nav class="sites" aria-label="Sean's sites">
+    <a href="./" aria-current="page">Chiki Games · phone</a>
+    <a href="https://shawnchiki.github.io/xr/">Chiki XR · Quest</a>
+  </nav>
+
+  <h1>Chiki<br>Games</h1>
   <p class="sub">Phone games · newest first</p>
 
-  <main class="cards">
-    <a class="card" href="string-of-love/"><b>String of Love</b><span class="blurb">Shan lassos Eliza, a bouncy gummy princess, and walks her home to the elves. Eliza wants to float him up to the aliens. Play the bot, or a friend on voice chat with a 4-digit code</span></a>
-    <a class="card" href="squirrel-tag/"><b>Squirrel Tag</b><span class="blurb">Play tag as a fuzzy baby squirrel on pipes and a giant tree bursting out of a factory wall. Fall and you splat</span></a>
-    <a class="card" href="toy-trash-island/"><b>Toy Trash Island</b><span class="blurb">Climb out of the caves of a candy-colored toy-trash island with up to 3 friends on voice chat, or a bot buddy. Rig rope bridges and hooks together and flag every summit</span></a>
-    <a class="card" href="drop-and-bounce/"><b>Drop &amp; Bounce</b><span class="blurb">Race out of a silo while colorful blocks rain down. Climb the pile, dodge the red rings, sprout wings and fly away. Play the bot, or a friend on voice chat with a 4-digit code</span></a>
-    <a class="card" href="roped/"><b>Roped</b><span class="blurb">Roam a floating Kandinsky painting with a friend, roped together, each with your own direction of down, and find five suns. Voice chat with a 4-digit code.</span></a>
-    <a class="card" href="carceri/"><b>Carceri</b><span class="blurb">Escape a Piranesi prison before the lockdown. Climb, balance and wall-run past hopeless inmates, alone or with friends on voice chat using a 4-digit code</span></a>
-    <a class="card" href="chikiballz/"><b>ChikiBallz</b><span class="blurb">Hide &amp; seek for jelly balls in a carved cube. Draw your own face, then play a friend on another phone with a 4-digit code</span></a>
-  </main>
+  <section class="mp">
+    <div class="head"><h2>Multiplayer · Multiplatform</h2><span class="count"></span></div>
+    <p class="note">Phones and the Quest in the same game. Pick your device.</p>
+    <div class="cards">
+      <div class="card" data-src="games:chikiballz xr:chikiballz-vr.html">
+        <b>ChikiBallz</b><span class="blurb">Hide &amp; seek for jelly balls in a carved cube. Draw your face, then a phone and a headset play each other with a 4-digit code</span>
+        <span class="plats">
+          <a class="plat ph" href="chikiballz/"><svg width="18" height="24" viewBox="0 0 18 24" aria-hidden="true"><rect x="1.5" y="1.5" width="15" height="21" rx="3.5" fill="none" stroke="#1a1446" stroke-width="3"/></svg><span>Phone</span></a>
+          <a class="plat qu" href="https://shawnchiki.github.io/xr/chikiballz-vr.html"><svg width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="15" rx="6" fill="none" stroke="#1a1446" stroke-width="3"/><circle cx="9" cy="9" r="2.5" fill="#1a1446"/><circle cx="19" cy="9" r="2.5" fill="#1a1446"/></svg><span>Quest</span></a>
+        </span>
+      </div>
+      <div class="card" data-src="xr:toy-box">
+        <b>Toy Box</b><span class="blurb">A giant toddler on the Quest puts every toy away before mom comes in, while friends on phones play the toys and fight back. Same Wi-Fi</span>
+        <span class="plats">
+          <a class="plat ph" href="https://shawnchiki.github.io/xr/toy-box/"><svg width="18" height="24" viewBox="0 0 18 24" aria-hidden="true"><rect x="1.5" y="1.5" width="15" height="21" rx="3.5" fill="none" stroke="#1a1446" stroke-width="3"/></svg><span>Phone<small>be a toy</small></span></a>
+          <a class="plat qu" href="https://shawnchiki.github.io/xr/toy-box/"><svg width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><rect x="1.5" y="1.5" width="25" height="15" rx="6" fill="none" stroke="#1a1446" stroke-width="3"/><circle cx="9" cy="9" r="2.5" fill="#1a1446"/><circle cx="19" cy="9" r="2.5" fill="#1a1446"/></svg><span>Quest<small>be the toddler</small></span></a>
+        </span>
+      </div>
+    </div>
+  </section>
 
-  <footer><span>Times are Toronto time (ET)</span></footer>
+  <section class="phone">
+    <div class="head"><h2>Phone Games</h2><span class="count"></span></div>
+    <p class="note">Solo, or phone to phone with a 4-digit code.</p>
+    <div class="cards">
+      <a class="card" href="string-of-love/"><b>String of Love</b><span class="blurb">Shan lassos Eliza, a bouncy gummy princess, and walks her home to the elves. Eliza wants to float him up to the aliens. Play the bot, or a friend on voice chat with a 4-digit code</span></a>
+      <a class="card" href="squirrel-tag/"><b>Squirrel Tag</b><span class="blurb">Play tag as a fuzzy baby squirrel on pipes and a giant tree bursting out of a factory wall. Fall and you splat</span></a>
+      <a class="card" href="toy-trash-island/"><b>Toy Trash Island</b><span class="blurb">Climb out of the caves of a candy-colored toy-trash island with up to 3 friends on voice chat, or a bot buddy. Rig rope bridges and hooks together and flag every summit</span></a>
+      <a class="card" href="drop-and-bounce/"><b>Drop &amp; Bounce</b><span class="blurb">Race out of a silo while colorful blocks rain down. Climb the pile, dodge the red rings, sprout wings and fly away. Play the bot, or a friend on voice chat with a 4-digit code</span></a>
+      <a class="card" href="roped/"><b>Roped</b><span class="blurb">Roam a floating Kandinsky painting with a friend, roped together, each with your own direction of down, and find five suns. Voice chat with a 4-digit code.</span></a>
+      <a class="card" href="carceri/"><b>Carceri</b><span class="blurb">Escape a Piranesi prison before the lockdown. Climb, balance and wall-run past hopeless inmates, alone or with friends on voice chat using a 4-digit code</span></a>
+    </div>
+  </section>
+
+  <footer>Times are Toronto time (ET)</footer>
 </div>
 <script src="updated.js" data-mode="list"></script>
 <script>
 (async () => {
+  document.querySelectorAll('section').forEach(s => { const n = s.querySelectorAll('.card').length; s.querySelector('.count').textContent = n + (n === 1 ? ' game' : ' games'); });
   const U = window.ChikiUpdated; if (!U) return;
+  const REPOS = { games: 'ShawnChiki/games', xr: 'ShawnChiki/xr' };
+  // a card's sources: its own folder here, or data-src="games:folder xr:file.html" for games in both repos
+  const sources = c => c.dataset.src
+    ? c.dataset.src.split(' ').map(s => { const [r, p] = s.split(':'); return [p, REPOS[r]]; })
+    : [[U.pathOf(c.href), REPOS.games]];
   const cards = [...document.querySelectorAll('.card')];
-  const got = await Promise.all(cards.map(async a => {
-    try {
-      const v = await U.latest(U.pathOf(a.href)), d = new Date(v.date);
-      const up = document.createElement('span'); up.className = 'up';
-      const w = document.createElement('span'); w.className = 'when'; w.textContent = 'Updated ' + U.ago(d) + ' · ' + U.when(d);
-      const m = document.createElement('span'); m.className = 'msg'; m.textContent = v.msg;
-      up.append(w, m); a.append(up);
-      return { a, t: +d };
-    } catch (e) { return { a, t: 0 }; }
+  const got = await Promise.all(cards.map(async c => {
+    const vs = (await Promise.all(sources(c).map(([p, r]) => U.latest(p, r).catch(() => null)))).filter(Boolean);
+    if (!vs.length) return { c, t: 0 };
+    const v = vs.sort((x, y) => new Date(y.date) - new Date(x.date))[0], d = new Date(v.date);   // whichever side changed last
+    const up = document.createElement('span'); up.className = 'up';
+    const w = document.createElement('span'); w.className = 'when'; w.textContent = 'Updated ' + U.ago(d) + ' · ' + U.when(d);
+    const m = document.createElement('span'); m.className = 'msg'; m.textContent = v.msg;
+    up.append(w, m); c.append(up);
+    return { c, t: +d };
   }));
-  const list = document.querySelector('.cards');
-  got.sort((x, y) => y.t - x.t).forEach(g => list.append(g.a));   // newest first
+  document.querySelectorAll('.cards').forEach(list =>                                   // newest first in each section
+    got.filter(g => list.contains(g.c)).sort((x, y) => y.t - x.t).forEach(g => list.append(g.c)));
 })();
 </script>
 </body>

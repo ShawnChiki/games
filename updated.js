@@ -12,12 +12,13 @@
     const rel = new URL(href, location.href).pathname.slice(base.pathname.length).replace(/index\.html$/, '').replace(/\/$/, '');
     return rel || 'index.html';
   }
-  async function latest(path){
-    const key = 'chiki-updated:' + path;
+  // repo is optional: the launcher also asks about games that live in the xr repo (e.g. 'ShawnChiki/xr')
+  async function latest(path, repo = REPO){
+    const key = 'chiki-updated:' + (repo === REPO ? '' : repo + ':') + path;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(key)); if (cached && Date.now() - cached.at < TTL) return cached.v; } catch (e) {}
     try {
-      const r = await fetch(`https://api.github.com/repos/${REPO}/commits?per_page=1&path=${encodeURIComponent(path)}`, { headers: { Accept: 'application/vnd.github+json' } });
+      const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=1&path=${encodeURIComponent(path)}`, { headers: { Accept: 'application/vnd.github+json' } });
       if (!r.ok) throw new Error('GitHub ' + r.status);
       const j = await r.json(); if (!j.length) throw new Error('no commits');
       const v = { date: j[0].commit.committer.date, msg: j[0].commit.message.split('\n')[0] };
