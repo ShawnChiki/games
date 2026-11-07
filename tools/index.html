@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f3f5f0">
+<title>Chiki Design Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Chiki Design Tools: form-finding and modeling tools.
+     Look = "drafting table": graph paper, thin precise ink lines, square corners with corner ticks, mono labels, one marker orange.
+     (Chiki Games = arcade night, Chiki XR = Memphis. Keep all three different.) To add a tool: see ../CLAUDE.md. */
+  :root{
+    --paper:#f3f5f0; --grid:rgba(40,120,160,.13); --grid2:rgba(40,120,160,.25);
+    --ink:#15181c; --soft:#545b63; --mark:#ff5a1f; --card:#fff;
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--paper)}
+  body{
+    margin:0; min-height:100vh; color:var(--ink); background-color:var(--paper);
+    background-image:
+      linear-gradient(var(--grid2) 1px,transparent 1px),linear-gradient(90deg,var(--grid2) 1px,transparent 1px),
+      linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:100px 100px,100px 100px,20px 20px,20px 20px;
+    font-family:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding:calc(18px + env(safe-area-inset-top)) 16px 60px;
+  }
+  .wrap{max-width:980px; margin:0 auto}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+  /* switch between Sean's sites */
+  .sites{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:26px}
+  .sites a{text-decoration:none; color:var(--ink); font:600 13px "IBM Plex Mono",ui-monospace,monospace;
+    padding:7px 11px; background:var(--card); border:1.5px solid var(--ink)}
+  .sites a[aria-current]{background:var(--ink); color:var(--paper)}
+
+  h1{margin:0; font-weight:700; font-size:clamp(46px,13vw,92px); line-height:.9; letter-spacing:-.03em}
+  h1 span{color:var(--mark)}
+  .sub{margin:14px 0 0; font:600 14px "IBM Plex Mono",ui-monospace,monospace; color:var(--soft)}
+
+  section{margin-top:42px}
+  .head{display:flex; align-items:baseline; gap:12px; border-bottom:1.5px solid var(--ink); padding-bottom:8px; margin-bottom:8px}
+  .head h2{margin:0; font-size:26px; font-weight:700; letter-spacing:-.01em}
+  .head .count{font:600 13px "IBM Plex Mono",ui-monospace,monospace; color:var(--soft)}
+  .note{margin:0 0 20px; font-size:15px; color:var(--soft)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:22px}
+  .card{
+    position:relative; display:block; text-decoration:none; color:var(--ink);
+    background:var(--card); border:1.5px solid var(--ink); padding:20px 18px 16px;
+    transition:transform .12s, box-shadow .12s;
+  }
+  /* corner ticks, like a drawing sheet */
+  .card::before,.card::after{content:""; position:absolute; width:14px; height:14px; border:2.5px solid var(--mark)}
+  .card::before{top:-6px; left:-6px; border-right:0; border-bottom:0}
+  .card::after{bottom:-6px; right:-6px; border-left:0; border-top:0}
+  .card:hover,.card:focus-visible{outline:none; box-shadow:6px 6px 0 var(--grid2)}
+  .card:active{transform:translate(2px,2px); box-shadow:none}
+  .card .no{display:block; font:600 12px "IBM Plex Mono",ui-monospace,monospace; color:var(--mark); letter-spacing:.06em}
+  .card b{display:block; margin-top:4px; font-size:25px; font-weight:700; line-height:1.1; letter-spacing:-.01em}
+  .card .blurb{display:block; margin-top:7px; font-size:15px; line-height:1.4; color:var(--soft)}
+  .card .up{display:block; margin-top:13px; padding-top:10px; border-top:1px dashed var(--ink); font:500 12.5px/1.45 "IBM Plex Mono",ui-monospace,monospace}
+  .card .when{font-weight:600}
+  .card .msg{display:block; margin-top:5px; font-family:"Space Grotesk",system-ui,sans-serif; font-size:14px}
+  .card .msg::before{content:"What's new: "; font-weight:700}
+
+  footer{margin-top:48px; font:500 13px "IBM Plex Mono",ui-monospace,monospace; color:var(--soft)}
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="sites" aria-label="Sean's sites">
+    <a href="../">Chiki Games · phone</a>
+    <a href="https://shawnchiki.github.io/xr/">Chiki XR · Quest</a>
+    <a href="./" aria-current="page">Design Tools</a>
+  </nav>
+
+  <h1>Design<br><span>Tools</span></h1>
+  <p class="sub">Form-finding and modeling · newest first</p>
+
+  <section>
+    <div class="head"><h2>On a screen</h2><span class="count mono"></span></div>
+    <p class="note">Phone or computer browser.</p>
+    <div class="cards">
+      <a class="card" href="https://claude.ai/artifact/D3mT5kmBmpB6wPkC4qCWeN"><span class="no"></span><b>Polifunicular</b><span class="blurb">Hang chains like Gaudí's Sagrada Família models, flip them upside down into arches and turn them to stone, for 3D-printed models</span></a>
+      <a class="card" href="https://claude.ai/artifact/AwVWrnuupc7KWijxDJ2baV"><span class="no"></span><b>Blasenhaus</b><span class="blurb">Blow and constrain soap-bubble walls like Frei Otto, test the foam as an inflatable, and walk inside it at full scale</span></a>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><h2>In the headset</h2><span class="count mono"></span></div>
+    <p class="note">Open these in the Quest browser.</p>
+    <div class="cards">
+      <a class="card" href="https://shawnchiki.github.io/xr/pentimento-park/" data-src="xr:pentimento-park"><span class="no"></span><b>Pentimento Park</b><span class="blurb">Ride a fingerboard to record runs, sketch the park around them, watch them ride the surface</span></a>
+      <a class="card" href="https://shawnchiki.github.io/xr/subdeck/" data-src="xr:subdeck"><span class="no"></span><b>Subdeck XR</b><span class="blurb">Sculpt a park in SubD, then shrink to fingerboard size and skate it with your hands as your feet</span></a>
+      <a class="card" href="https://shawnchiki.github.io/xr/chiki-logs/" data-src="xr:chiki-logs"><span class="no"></span><b>Chiki Logs</b><span class="blurb">Design log climbers at full size or as a model</span></a>
+    </div>
+  </section>
+
+  <footer>Times are Toronto time (ET)</footer>
+</div>
+<script src="../updated.js" data-mode="list"></script>
+<script>
+(async () => {
+  document.querySelectorAll('section').forEach(s => { const n = s.querySelectorAll('.card').length; s.querySelector('.count').textContent = n + (n === 1 ? ' tool' : ' tools'); });
+  const number = () => document.querySelectorAll('.cards').forEach(l => [...l.children].forEach((c, i) => c.querySelector('.no').textContent = 'No. ' + String(i + 1).padStart(2, '0')));
+  number();
+  const U = window.ChikiUpdated; if (!U) return;
+  const REPOS = { games: 'ShawnChiki/games', xr: 'ShawnChiki/xr' };
+  // only cards with data-src have git history (tools hosted as Claude artifacts don't)
+  const cards = [...document.querySelectorAll('.card')];
+  const got = await Promise.all(cards.map(async c => {
+    if (!c.dataset.src) return { c, t: 0 };
+    const vs = (await Promise.all(c.dataset.src.split(' ').map(s => { const [r, p] = s.split(':'); return U.latest(p, REPOS[r]).catch(() => null); }))).filter(Boolean);
+    if (!vs.length) return { c, t: 0 };
+    const v = vs.sort((x, y) => new Date(y.date) - new Date(x.date))[0], d = new Date(v.date);
+    const up = document.createElement('span'); up.className = 'up';
+    const w = document.createElement('span'); w.className = 'when'; w.textContent = 'Updated ' + U.ago(d) + ' · ' + U.when(d);
+    const m = document.createElement('span'); m.className = 'msg'; m.textContent = v.msg;
+    up.append(w, m); c.append(up);
+    return { c, t: +d };
+  }));
+  document.querySelectorAll('.cards').forEach(list => got.filter(g => list.contains(g.c)).sort((x, y) => y.t - x.t).forEach(g => list.append(g.c)));
+  number();
+})();
+</script>
+</body>
+</html>
