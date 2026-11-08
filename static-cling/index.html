@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Static Cling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1a1f52;
+  --paper:rgba(255,253,248,0.94);
+  --pink:#f2509e;
+  --sky:#3a8df5;
+  --sun:#ffd21e;
+  --display:'Bricolage Grotesque','Trebuchet MS',system-ui,sans-serif;
+  --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  /* layout: full-bleed world; menus are one centred paper card; in play, thumb controls at the bottom corners, Mic/Exit top-right */
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#cfe0f2;color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,input:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+[hidden]{display:none !important}
+
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));z-index:5;pointer-events:none}
+.panel{pointer-events:auto;width:min(460px,100%);max-height:100%;overflow:auto;background:var(--paper);border-radius:26px;box-shadow:0 18px 50px rgba(26,31,82,.28);padding:22px 22px 20px;display:flex;flex-direction:column;gap:12px}
+.panel h1{margin:0;font-family:var(--display);font-weight:800;font-size:46px;line-height:.95;letter-spacing:-.02em;text-wrap:balance}
+.panel h1 .a{color:var(--pink)} .panel h1 .b{color:var(--sky)}
+.panel h2{margin:0;font-family:var(--display);font-weight:800;font-size:28px}
+.panel p{margin:0;font-size:15px;line-height:1.45;max-width:60ch}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{height:48px;padding:0 18px;border-radius:999px;background:rgba(26,31,82,.08);font-weight:800;font-size:15px}
+.btn.hot{background:var(--ink);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.codein{height:48px;width:110px;border-radius:999px;border:2px solid rgba(26,31,82,.2);padding:0 16px;font:800 20px var(--body);letter-spacing:.2em;text-align:center;color:var(--ink);background:#fff;font-variant-numeric:tabular-nums}
+.code{font-family:var(--display);font-weight:800;font-size:44px;letter-spacing:.12em;font-variant-numeric:tabular-nums}
+.status{min-height:20px;font-size:14px;font-weight:700;color:#4a3a9a}
+.tips{margin:0;padding-left:18px;font-size:13.5px;line-height:1.5;opacity:.8}
+
+.hud{position:fixed;inset:0;pointer-events:none;z-index:3}
+.hud .top{position:absolute;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));display:flex;gap:6px;pointer-events:auto}
+.chip{height:38px;padding:0 14px;border-radius:999px;background:var(--paper);font-weight:800;font-size:13px;box-shadow:0 6px 20px rgba(26,31,82,.16)}
+.chip.off{opacity:.6;text-decoration:line-through}
+.toast{position:absolute;left:50%;top:calc(max(12px,env(safe-area-inset-top)) + 50px);transform:translateX(-50%);max-width:calc(100% - 32px);background:rgba(26,31,82,.82);color:#fff;font-weight:700;font-size:14px;padding:9px 15px;border-radius:16px;text-align:center;transition:opacity .5s}
+.toast.hide{opacity:0}
+.joy{position:absolute;left:28px;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);width:124px;height:124px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:rgba(26,31,82,.18)}
+.joy b{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 4px 12px rgba(26,31,82,.25)}
+body:not(.touch) .joy{display:none}
+.jump{position:absolute;right:max(24px,env(safe-area-inset-right));bottom:calc(env(safe-area-inset-bottom,0px) + 36px);width:96px;height:96px;border-radius:50%;background:var(--sun);color:var(--ink);font-family:var(--display);font-weight:800;font-size:18px;box-shadow:0 8px 0 #c89a00;pointer-events:auto;touch-action:none}
+.jump.down{transform:translateY(5px);box-shadow:0 3px 0 #c89a00}
+.solo{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 150px);height:56px;padding:0 24px;border-radius:999px;background:linear-gradient(90deg,var(--pink),var(--sky));color:#fff;font-family:var(--display);font-weight:800;font-size:19px;box-shadow:0 8px 24px rgba(26,31,82,.3);pointer-events:auto;white-space:nowrap}
+.solo.on{background:#fff;color:var(--ink);box-shadow:0 0 0 4px var(--sun),0 8px 24px rgba(26,31,82,.3)}
+body:not(.touch) .jump{display:none}
+.loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;background:var(--paper);border-radius:999px;padding:12px 18px;font-weight:800;font-size:15px;display:flex;align-items:center;gap:10px;box-shadow:0 12px 30px rgba(26,31,82,.25)}
+.loading i{width:11px;height:11px;border-radius:50%;background:var(--pink);animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{transform:scale(.6)}to{transform:scale(1.3)}}
+.flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4;transition:opacity .9s ease-out}
+.flash.on{opacity:.9;transition:none}
+@media (prefers-reduced-motion: reduce){.loading i{animation:none}}
+@media (max-height:440px){.panel{padding:14px 18px;gap:8px}.panel h1{font-size:34px}.solo{bottom:calc(env(safe-area-inset-bottom,0px) + 30px)}}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.8.3/src/index.js"
+} }
+</script>
+</head>
+<body>
+<canvas id="c" aria-label="Static Cling world"></canvas>
+
+<div class="screen" id="sTitle">
+  <div class="panel">
+    <h1><span class="a">Static</span> <span class="b">Cling</span></h1>
+    <p>Two balloon buddies lost in a sprawl of giant inflatables. Follow the crackling lightning between you, find each other and hug. Keep bouncing around together, then both tap <b>Solo adventure</b> to burst into a new world.</p>
+    <div class="row"><button class="btn hot" id="hostBtn">Host a game</button><button class="btn" id="practiceBtn">Practice with a bot</button></div>
+    <div class="row"><input class="codein" id="codeIn" inputmode="numeric" maxlength="4" placeholder="1234" aria-label="Game code"><button class="btn" id="joinBtn">Join</button></div>
+    <div class="status" id="lobStatus"></div>
+    <ul class="tips">
+      <li>Left thumb moves, drag on the right to turn. Hold <b>Bounce</b> to go higher each bounce.</li>
+      <li>The buzz gets louder the closer you are. Talk to each other on voice chat.</li>
+      <li>Bounce hard into the inflatables to slip inside them.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="screen" id="sLobby" hidden>
+  <div class="panel">
+    <h2 id="lobTitle">Your game</h2>
+    <div class="row"><span>Code</span><span class="code" id="lobCode">0000</span></div>
+    <p id="lobNote">Your buddy types this code and taps Join. You're the pink balloon, they're the blue one.</p>
+    <div class="status" id="lobStatus2"></div>
+    <div class="row"><button class="btn hot" id="startBtn" disabled>Start</button><button class="btn" id="micBtn">Mic on</button><button class="btn" id="leaveBtn">Leave</button></div>
+  </div>
+</div>
+
+<div class="hud" id="hud" hidden>
+  <div class="top"><button class="chip" id="hudMic" type="button">Mic on</button><button class="chip" id="hudExit" type="button">Exit</button></div>
+  <div class="toast hide" id="toast"></div>
+  <div class="joy" id="joy"><b id="knob"></b></div>
+  <button class="jump" id="jumpBtn" type="button">Bounce</button>
+  <button class="solo" id="soloBtn" type="button" hidden>Solo adventure</button>
+</div>
+<div class="loading" id="loading" hidden><i></i><span id="loadText">Inflating…</span></div>
+<div class="flash" id="flash"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { computeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+const TAU = Math.PI * 2;
+const isTouch = matchMedia('(hover: none)').matches || ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DETAIL = isTouch ? 0.55 : 0.8;
+if (isTouch) document.body.classList.add('touch');
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- seeded randomness + noise ---------------- */
+function makeRng(seed) {
+  let a = (seed >>> 0) || 1;
+  const f = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  f.range = (lo, hi) => lo + (hi - lo) * f();
+  f.int = (lo, hi) => Math.floor(lo + (hi - lo + 1) * f());
+  f.chance = (p) => f() < p;
+  f.pick = (arr) => arr[Math.floor(f() * arr.length)];
+  f.sign = () => (f() < 0.5 ? -1 : 1);
+  return f;
+}
+function makeWob(rng, terms, amp) {
+  const k = [], p = [], a = [];
+  for (let i = 0; i < terms; i++) { k.push(i + 1 + (i > 0 ? rng.int(0, 2) : 0)); p.push(rng() * TAU); a.push(rng.range(0.4, 1) / (i + 1)); }
+  return (th) => { let s = 0; for (let i = 0; i < terms; i++) s += a[i] * Math.sin(k[i] * th + p[i]); return s * amp; };
+}
+function vhash(ix, iz) { let h = (Math.imul(ix, 374761393) + Math.imul(iz, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function vnoise2(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = vhash(ix, iz), b = vhash(ix + 1, iz), c = vhash(ix, iz + 1), d = vhash(ix + 1, iz + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+/* ---------------- ripstop palette (sampled from the photos) ---------------- */
+const PAL = [
+  ['#1f3fd1', 3.0], ['#3a6cf2', 1.6], ['#63b6f3', 1.3], ['#7140d4', 1.4], ['#a65ee2', 0.9], ['#f2509e', 1.3],
+  ['#ff8cc6', 0.6], ['#ff7a1a', 1.3], ['#ffd21e', 1.3], ['#86d046', 1.0], ['#e83336', 0.6], ['#35b36e', 0.5]
+];
+const C = { blue: 0, cobalt: 1, sky: 2, violet: 3, lilac: 4, pink: 5, rose: 6, orange: 7, yellow: 8, lime: 9, red: 10, green: 11 };
+const wSum = PAL.reduce((s, c) => s + c[1], 0);
+let acc = 0;
+const CDF = PAL.map((c) => (acc += c[1] / wSum)); CDF[CDF.length - 1] = 1.001;
+const U_PAL = { value: PAL.map((c) => new THREE.Color(c[0])) };
+const U_CDF = { value: CDF };
+const U_TIME = { value: 0 };
+const U_BREATH = { value: reduced ? 0 : 0.035 };
+const U_POKEC = { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, 0, 0)) };
+const U_POKED = { value: Array.from({ length: 4 }, () => new THREE.Vector3()) };
+const U_WIND = { value: new THREE.Vector3(0.12, 0, 0.07) };
+const U_PALAVG = { value: PAL.reduce((c, p) => c.add(new THREE.Color(p[0]).multiplyScalar(p[1] / wSum)), new THREE.Color(0, 0, 0)) };
+// colour families for knotted tentacles: neighbours that wrap each other get different families
+const FAMILIES = [[C.blue, C.cobalt, C.sky], [C.orange, C.yellow, C.red], [C.pink, C.rose, C.lilac], [C.lime, C.green, C.sky], [C.violet, C.lilac, C.blue], [C.red, C.pink, C.orange]];
+
+/* ---------------- patchwork fabric shader ---------------- */
+const VERT_HEAD = `
+uniform float uTime; uniform float uBreath; uniform float uSeed; uniform float uInflate; uniform float uCloth; uniform vec3 uWind;
+uniform vec4 uPokeC[4]; uniform vec3 uPokeD[4];
+attribute float aThick;
+varying vec2 vPUv;
+`;
+const VERT_BODY = `
+#include <begin_vertex>
+vPUv = uv;
+float brth = sin(uTime * 1.25 + position.x * 0.33 + position.z * 0.29 + position.y * 0.21 + uSeed * 3.1);
+transformed += objectNormal * (brth * uBreath - aThick * (1.0 - uInflate));
+if (uCloth > 0.5) transformed += (uWind * (0.6 + 0.4 * sin(uTime * 2.3 + position.x * 0.7 + position.z * 0.5)) + objectNormal * 0.1 * sin(uTime * 3.1 + position.y * 1.3 + uSeed)) * (uv.y * uv.y);
+vec3 pokeW = (modelMatrix * vec4(transformed, 1.0)).xyz, pokeD = vec3(0.0);
+for (int i = 0; i < 4; i++) {
+  vec4 pc = uPokeC[i];
+  if (pc.w > 0.0) { float d = distance(pokeW, pc.xyz); if (d < pc.w) { float f = 1.0 - d * d / (pc.w * pc.w); pokeD += uPokeD[i] * (f * f); } }
+}
+if (dot(pokeD, pokeD) > 0.0) transformed += inverse(mat3(modelMatrix)) * pokeD;
+`;
+const FRAG_HEAD = `
+uniform float uSeed;
+uniform vec2 uPScale;
+uniform vec4 uBand;
+uniform float uSolid;
+uniform vec3 uPal[12];
+uniform float uCdf[12];
+uniform vec4 uSub;
+uniform vec3 uPalAvg;
+varying vec2 vPUv;
+float ph(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031 + uSeed * 0.0137);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+vec3 palPick(float r) {
+  // knotted tentacles use a small colour family (2 or 3 colours) so each one reads as one shape
+  if (uSub.w > 0.5) { float pick = uSub.w < 2.5 ? (r < 0.62 ? uSub.x : uSub.y) : (r < 0.5 ? uSub.x : (r < 0.82 ? uSub.y : uSub.z)); return uPal[int(pick + 0.5)]; }
+  vec3 c = uPal[11];
+  for (int i = 11; i >= 0; i--) { if (r < uCdf[i]) c = uPal[i]; }
+  return c;
+}
+vec4 patchShards(vec2 uv) {
+  float nu = max(1.0, floor(uPScale.x + 0.5));
+  vec2 p = vec2(uv.x * nu, uv.y * uPScale.y);
+  vec2 ip = floor(p), fp = fract(p);
+  float d1 = 8.0, d2 = 8.0; vec2 bid = vec2(0.0); vec2 br = vec2(0.0);
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j));
+      vec2 id = ip + g; id.x = mod(id.x, nu);
+      vec2 o = vec2(ph(id), ph(id + 19.19));
+      vec2 r = g + 0.1 + o * 0.8 - fp;
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; bid = id; br = r; }
+      else if (d < d2) { d2 = d; }
+    }
+  }
+  float edge = sqrt(d2) - sqrt(d1);
+  float a = ph(bid + 7.7) * 6.2831;
+  float side = dot(-br, vec2(cos(a), sin(a)));
+  float split = step(0.45, ph(bid + 3.3));
+  float key = ph(bid + (side > 0.0 ? 11.0 : 23.0) * split + 1.0);
+  edge = mix(edge, min(edge, abs(side) * 1.4), split);
+  return vec4(palPick(key), edge);
+}
+vec4 patchStripes(vec2 uv, out float inb) {
+  float nu = max(1.0, floor(uPScale.x + 0.5));
+  float cnt = max(3.0, floor(nu * uBand.w + 0.5));
+  float x = uv.x * cnt + sin(uv.x * 18.8496) * cnt * 0.028;
+  float c = mod(floor(x), cnt);
+  float fx = fract(x);
+  float vy = uv.y * uPScale.y * 0.42 + (fx - 0.5) * (ph(vec2(c, 5.0)) - 0.5) * 1.8 + ph(vec2(c, 2.0));
+  float sgi = floor(vy);
+  float fy = fract(vy);
+  float key = ph(vec2(c, sgi) + 41.0);
+  float edge = min(min(fx, 1.0 - fx) * 1.6, min(fy, 1.0 - fy) * 1.1);
+  float lo = uBand.x + (ph(vec2(c, 8.0)) - 0.5) * 0.07;
+  float hi = uBand.y + (ph(vec2(c, 9.0)) - 0.5) * 0.07;
+  inb = step(lo, uv.y) * step(uv.y, hi) * step(ph(vec2(c, 3.0)), uBand.z);
+  return vec4(palPick(key), edge);
+}
+vec3 patchColor(vec2 uv) {
+  vec4 a = patchShards(uv);
+  if (uBand.z > 0.0) {
+    float inb = 0.0;
+    vec4 b = patchStripes(uv, inb);
+    a = mix(a, b, inb);
+  }
+  vec3 col = a.rgb;
+  if (uSolid >= 0.0) {
+    vec3 sc = uPal[int(uSolid)];
+    float keep = step(0.88, ph(floor(uv * uPScale) + 77.0));
+    col = mix(sc, col, keep);
+  }
+  float e = a.a;
+  // seams and patches fade once they're only a few pixels wide, so distant fabric doesn't shimmer
+  float aa = fwidth(e) + 1e-4;
+  float seam = smoothstep(0.0, max(0.07, aa * 1.2), e);
+  float puff = smoothstep(0.02, 0.5, e);
+  float near = 1.0 - smoothstep(0.08, 0.35, aa);
+  col *= mix(1.0, mix(0.72, 1.0, seam), near) * mix(1.0, mix(0.9, 1.05, puff), near);
+  col = mix(col, uPalAvg, smoothstep(0.3, 0.9, aa));
+  return col;
+}
+`;
+function patchMat(o = {}) {
+  const u = {
+    uSeed: { value: o.seed ?? 1 },
+    uPScale: { value: new THREE.Vector2(Math.max(1, o.su ?? 8), Math.max(0.5, o.sv ?? 8)) },
+    uBand: { value: new THREE.Vector4(...(o.band ?? [0, 0, 0, 1])) },
+    uSolid: { value: o.solid ?? -1 },
+    uInflate: { value: 1 },
+    uSub: { value: new THREE.Vector4(...(o.sub ?? [0, 0, 0, 0])) },
+    uCloth: { value: o.cloth ? 1 : 0 },
+  };
+  const m = new THREE.MeshPhysicalMaterial({
+    roughness: 0.5, metalness: 0, sheen: 0.6, sheenRoughness: 0.5, sheenColor: new THREE.Color('#ffffff'),
+    clearcoat: 0.35, clearcoatRoughness: 0.32, side: o.double ? THREE.DoubleSide : THREE.FrontSide,
+  });
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u, { uTime: U_TIME, uBreath: U_BREATH, uPal: U_PAL, uCdf: U_CDF, uPokeC: U_POKEC, uPokeD: U_POKED, uWind: U_WIND, uPalAvg: U_PALAVG });
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + VERT_HEAD).replace('#include <begin_vertex>', VERT_BODY);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
+      .replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb = patchColor(vPUv);');
+  };
+  m.customProgramCacheKey = () => 'ripstop-patch-3';
+  m.userData.u = u;
+  return m;
+}
+
+/* ---------------- geometry kit ---------------- */
+function gridGeometry(nu, nv, fill, { flip = false, wrapU = true, wrapV = false } = {}) {
+  const n = (nu + 1) * (nv + 1);
+  const pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), th = new Float32Array(n);
+  const o = new THREE.Vector3();
+  let k = 0;
+  for (let j = 0; j <= nv; j++) {
+    const v = j / nv;
+    for (let i = 0; i <= nu; i++) {
+      const u = i / nu;
+      const r = fill(u, v, i, j, o);
+      pos[k * 3] = o.x; pos[k * 3 + 1] = o.y; pos[k * 3 + 2] = o.z;
+      uv[k * 2] = r ? r[0] : u; uv[k * 2 + 1] = r ? r[1] : v; th[k] = r && r.length > 2 ? r[2] : 0;
+      k++;
+    }
+  }
+  const idx = new (n > 65535 ? Uint32Array : Uint16Array)(nu * nv * 6);
+  let q = 0;
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    const a = j * (nu + 1) + i, b = a + 1, d = a + nu + 1, c = d + 1;
+    if (flip) { idx[q++] = a; idx[q++] = d; idx[q++] = b; idx[q++] = b; idx[q++] = d; idx[q++] = c; }
+    else { idx[q++] = a; idx[q++] = b; idx[q++] = d; idx[q++] = b; idx[q++] = c; idx[q++] = d; }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('aThick', new THREE.BufferAttribute(th, 1));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  weld(g, nu, nv, wrapU, wrapV);
+  g.computeBoundingSphere();
+  return g;
+}
+function weld(g, nu, nv, wu, wv) {
+  const N = g.attributes.normal.array, row = nu + 1;
+  const avg = (a, b) => {
+    const x = N[a * 3] + N[b * 3], y = N[a * 3 + 1] + N[b * 3 + 1], z = N[a * 3 + 2] + N[b * 3 + 2];
+    const l = Math.hypot(x, y, z) || 1;
+    N[a * 3] = N[b * 3] = x / l; N[a * 3 + 1] = N[b * 3 + 1] = y / l; N[a * 3 + 2] = N[b * 3 + 2] = z / l;
+  };
+  if (wu) for (let j = 0; j <= nv; j++) avg(j * row, j * row + nu);
+  if (wv) for (let i = 0; i <= nu; i++) avg(i, nv * row + i);
+}
+/* fat tube, split into chunks (tight bounds for walking), analytic normals so chunks join seamlessly */
+function tubeChunks(curve, segs, rads, radiusFn, chunk = 30) {
+  const frames = curve.computeFrenetFrames(segs, false);
+  const L = curve.getLength(), dsl = L / segs;
+  const Cp = [], Rr = [];
+  for (let j = 0; j <= segs; j++) { Cp.push(curve.getPointAt(j / segs, new THREE.Vector3())); Rr.push(radiusFn(j / segs)); }
+  const out = [], cols = rads + 1;
+  for (let j0 = 0; j0 < segs; j0 += chunk) {
+    const j1 = Math.min(segs, j0 + chunk), rows = j1 - j0 + 1, n = rows * cols;
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), th = new Float32Array(n);
+    let k = 0;
+    for (let j = j0; j <= j1; j++) {
+      const T = frames.tangents[j], N = frames.normals[j], B = frames.binormals[j], c = Cp[j], r = Rr[j];
+      const jm = Math.max(0, j - 1), jp = Math.min(segs, j + 1), dr = (Rr[jp] - Rr[jm]) / ((jp - jm) * dsl);
+      for (let i = 0; i <= rads; i++) {
+        const a = i / rads * TAU, ca = Math.cos(a), sa = Math.sin(a);
+        const rx = ca * N.x + sa * B.x, ry = ca * N.y + sa * B.y, rz = ca * N.z + sa * B.z;
+        pos[k * 3] = c.x + r * rx; pos[k * 3 + 1] = c.y + r * ry; pos[k * 3 + 2] = c.z + r * rz;
+        let nx = rx - T.x * dr, ny = ry - T.y * dr, nz = rz - T.z * dr; const l = Math.hypot(nx, ny, nz) || 1;
+        nor[k * 3] = nx / l; nor[k * 3 + 1] = ny / l; nor[k * 3 + 2] = nz / l;
+        uv[k * 2] = i / rads; uv[k * 2 + 1] = j / segs; th[k] = r * 0.97;
+        k++;
+      }
+    }
+    const idx = new Uint16Array((rows - 1) * rads * 6);
+    let q = 0;
+    for (let jj = 0; jj < rows - 1; jj++) for (let i = 0; i < rads; i++) {
+      const a = jj * cols + i, b = a + 1, d = a + cols, c2 = d + 1;
+      idx[q++] = a; idx[q++] = b; idx[q++] = d; idx[q++] = b; idx[q++] = c2; idx[q++] = d;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.setAttribute('aThick', new THREE.BufferAttribute(th, 1));
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.computeBoundingSphere();
+    out.push(g);
+  }
+  return out;
+}
+function ringGeo(Rfn, yc, rt, tilt, tph, rtVar, rtph, leanAt, nu, nv) {
+  return gridGeometry(nu, nv, (u, v, i, j, o) => {
+    const p = u * TAU, al = v * TAU;
+    const R = Rfn(p);
+    const rtl = rt * (1 + rtVar * Math.sin(3 * p + rtph));
+    const y = yc + tilt * Math.sin(p + tph);
+    const rr = R + rtl * Math.cos(al);
+    let lx = 0, lz = 0; if (leanAt) [lx, lz] = leanAt(y);
+    o.set(rr * Math.cos(p) + lx, y + rtl * Math.sin(al), rr * Math.sin(p) + lz);
+  }, { flip: true, wrapU: true, wrapV: true });
+}
+function superq(rx, ry, rz, e1, e2, seg) {
+  const hs = Math.max(8, Math.round(seg * 0.75));
+  const g = new THREE.SphereGeometry(1, seg, hs);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    x = Math.sign(x) * Math.pow(Math.abs(x), e2); z = Math.sign(z) * Math.pow(Math.abs(z), e2); y = Math.sign(y) * Math.pow(Math.abs(y), e1);
+    p.setXYZ(i, x * rx, y * ry, z * rz);
+  }
+  g.setAttribute('aThick', new THREE.BufferAttribute(new Float32Array(p.count), 1));
+  g.computeVertexNormals();
+  weld(g, seg, hs, true, false);
+  g.computeBoundingSphere();
+  return g;
+}
+function finGeometry(curve, radiusFn, s0, s1, teeth, finH, rng, tilt) {
+  const pos = [], uv = [], idx = [];
+  const up = V3(0, 1, 0), T = V3(0, 0, 0), Cp = V3(0, 0, 0), N = V3(0, 0, 0), Q = new THREE.Quaternion();
+  const samples = [], d = (s1 - s0) / teeth;
+  for (let k = 0; k < teeth; k++) { samples.push([s0 + k * d, 0.28]); samples.push([s0 + k * d + d * 0.78, rng.range(0.7, 1)]); }
+  samples.push([s1, 0.28]);
+  const last = samples.length - 1;
+  samples.forEach(([s, hf], n) => {
+    curve.getPointAt(s, Cp); curve.getTangentAt(s, T);
+    N.copy(up).addScaledVector(T, -T.dot(up));
+    if (N.lengthSq() < 1e-4) N.set(1, 0, 0);
+    N.normalize(); Q.setFromAxisAngle(T, tilt); N.applyQuaternion(Q);
+    const r = radiusFn(s) * 0.82, h = finH * hf;
+    const bx = Cp.x + N.x * r, by = Cp.y + N.y * r, bz = Cp.z + N.z * r;
+    pos.push(bx, by, bz, bx + N.x * h - T.x * h * 0.45, by + N.y * h - T.y * h * 0.45, bz + N.z * h - T.z * h * 0.45);
+    uv.push(n / last, 0, n / last, hf);
+  });
+  for (let n = 0; n < last; n++) { const a = n * 2, b = a + 1, c = a + 2, e = a + 3; idx.push(a, c, b, b, c, e); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('aThick', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));
+  g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+  return g;
+}
+function mesh(geo, mat, walk = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = true; m.receiveShadow = true; m.userData.walk = walk;
+  return m;
+}
+
+/* ---------------- world height field (continuous inflatable ground) ---------------- */
+let heightAt = () => 0;
+function makeHeightFn(seed, L, P) {
+  const r = makeRng(seed * 17 + 3);
+  const ox = r() * 1000, oz = r() * 1000;
+  const mounds = L.towers.map((T) => ({ x: T.x, z: T.z, h: r.range(1.4, 2.8) * Math.sqrt(P.puff), w: r.range(8, 12) * (T.small ? 0.75 : 1) }));
+  const qa = r() * TAU, ca = Math.cos(qa), sa = Math.sin(qa), qc = r.range(2.6, 3.6), qamp = 0.18 * P.puff;
+  const Rt = L.worldR + 26;
+  return (x, z) => {
+    let h = 1.0 + 2.0 * (vnoise2(x * 0.026 + ox, z * 0.026 + oz) - 0.5) + 0.8 * (vnoise2(x * 0.07 + oz, z * 0.07 + ox) - 0.5);
+    for (const m of mounds) { const dx = x - m.x, dz = z - m.z, d2 = dx * dx + dz * dz; if (d2 < m.w * m.w * 9) h += m.h * Math.exp(-d2 / (m.w * m.w)); }
+    const xr = x * ca - z * sa, zr = x * sa + z * ca;
+    h += qamp * (Math.sqrt((0.5 - 0.5 * Math.cos(TAU * xr / qc)) * (0.5 - 0.5 * Math.cos(TAU * zr / qc))) - 0.5);
+    h = Math.max(0.35, h);
+    const e = Rt - Math.hypot(x, z);
+    if (e < 5) h = e <= 0 ? -0.3 : lerp(-0.3, h, Math.sqrt(1 - Math.pow(1 - e / 5, 2)));
+    return h;
+  };
+}
+function buildTerrain(L, P) {
+  const Rt = L.worldR + 27, step = isTouch ? 1.1 : 0.8, n = Math.ceil(2 * Rt / step);
+  const cell = P.cell * 3.4;
+  const geo = gridGeometry(n, n, (u, v, i, j, o) => { const x = lerp(-Rt, Rt, u), z = lerp(-Rt, Rt, v); o.set(x, heightAt(x, z), z); }, { flip: true, wrapU: false });
+  const m = mesh(geo, patchMat({ seed: 3.3, su: 2 * Rt / cell, sv: 2 * Rt / cell }), false);
+  m.castShadow = false;
+  const g = new THREE.Group(); g.add(m);
+  return g;
+}
+
+/* ---------------- tower parts ---------------- */
+function buildCap(rng, sc, P, spiky) {
+  const grp = new THREE.Group();
+  const hc = rng.range(2.6, 4.6) * sc, Rc = rng.range(1.2, 2.2) * sc, rb = rng.range(0.75, 1.15) * sc, rcw = rb * rng.range(0.68, 0.88);
+  const dome = !spiky && rng.chance(0.45);
+  const raw = [[rb * 1.08, -0.35], [rb, hc * 0.14], [rcw, hc * 0.36], [lerp(rcw, Rc, 0.38), hc * 0.62], [Rc * 0.9, hc * 0.85], [Rc, hc * 0.96], [Rc * 0.97, hc * 1.02]];
+  if (dome) raw.push([Rc * 0.78, hc * 1.1], [Rc * 0.42, hc * 1.18], [0.02, hc * 1.21]);
+  else raw.push([Rc * 0.84, hc * 0.99], [Rc * 0.45, hc * 0.9], [0.02, hc * 0.87]);
+  const nv = Math.round(76 * DETAIL), nu = Math.round(60 * DETAIL);
+  const prof = new THREE.SplineCurve(raw.map((p) => new THREE.Vector2(p[0], p[1]))).getSpacedPoints(nv);
+  let jRim = Math.round(nv * 0.6), maxR = 0;
+  prof.forEach((p, j) => { if (j > nv * 0.4 && p.x > maxR) { maxR = p.x; jRim = j; } });
+  let arc = 0; for (let j = 1; j < prof.length; j++) arc += prof[j].distanceTo(prof[j - 1]);
+  const Pc = rng.int(10, 22), phP = rng() * TAU, amp = rng.range(0.1, 0.2) * P.puff, tw = rng.range(-1, 1);
+  const S = rng.int(6, 14), phS = rng() * TAU, scal = rng.range(0.06, 0.13);
+  const spikeH = rng.range(0.5, 1.2) * sc, spikeN = rng.int(7, 13);
+  const modR = (r0, y, th) => {
+    const wp = smooth(0, hc * 0.2, y) * (1 - smooth(hc * 0.8, hc * 0.95, y));
+    const pl = Math.pow(Math.abs(Math.sin(Pc * th * 0.5 + phP + tw * y / hc)), 0.55);
+    let r = r0 * (1 + wp * amp * (pl - 0.6) * 2);
+    r *= 1 + smooth(hc * 0.82, hc * 0.96, y) * scal * Math.pow(Math.abs(Math.cos(S * th * 0.5 + phS)), 2);
+    return Math.max(0.01, r);
+  };
+  const geo = gridGeometry(nu, nv, (u, v, i, j, o) => {
+    const p = prof[j], th = u * TAU, r = modR(p.x, p.y, th);
+    let y = p.y;
+    if (spiky && j > jRim) { const f = spikeN * u; const tri = 1 - Math.abs(2 * (f - Math.floor(f)) - 1); y += spikeH * Math.pow(tri, 1.4) * smooth(Rc * 0.45, Rc * 0.85, p.x); }
+    o.set(r * Math.cos(th), y, r * Math.sin(th));
+  }, { flip: true });
+  grp.add(mesh(geo, patchMat({ seed: rng() * 100, su: Math.max(4, Math.round(TAU * Rc * 0.8 / P.cell)), sv: arc / P.cell, band: [0.12, 0.8, clamp(P.stripes * rng.range(0.8, 1.4), 0, 1), 1.4], double: true })));
+  if (!spiky || rng.chance(0.5)) {
+    const rt = rng.range(0.18, 0.32) * sc * Math.sqrt(P.puff), yR = hc * 0.975;
+    grp.add(mesh(ringGeo((p) => modR(Rc, yR, p) * 0.99, yR, rt, 0, 0, 0.1, rng() * TAU, null, nu, 12),
+      patchMat({ seed: rng() * 100, su: 6, sv: 2, solid: rng.pick([C.red, C.blue, C.pink, C.yellow, C.cobalt]) })));
+  }
+  return { group: grp, height: hc * 1.25 };
+}
+
+function buildTower(rng, T, P) {
+  const g = new THREE.Group();
+  const s = T.small ? 0.7 : 1;
+  const H = rng.range(11, 17) * s * P.height;
+  const Rb = rng.range(4.4, 6.4) * s, rw = rng.range(1.8, 2.8) * s, Rbowl = rng.range(4.2, 6.4) * s;
+  let y0 = Infinity;
+  for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; y0 = Math.min(y0, heightAt(T.x + Math.cos(a) * Rb, T.z + Math.sin(a) * Rb)); }
+  y0 -= 0.5;
+  g.position.set(T.x, y0, T.z);
+  const wy = H * rng.range(0.4, 0.52), by = H * 0.8;
+  const cell = P.cell;
+  const lean = [rng.range(-1, 1) * 0.9 * s, rng.range(-1, 1) * 0.9 * s];
+  const leanAt = (y) => { const f = clamp(y / H, 0, 1.2); return [lean[0] * f * f, lean[1] * f * f]; };
+
+  const pts = [[Rb * 0.9, -0.6], [Rb, 0.35], [Rb * 0.8, H * 0.09], [lerp(Rb, rw, 0.6), H * 0.2], [rw * 1.08, wy * 0.8], [rw, wy],
+    [rw * 1.18, lerp(wy, by, 0.3)], [lerp(rw, Rbowl, 0.6), lerp(wy, by, 0.68)], [Rbowl * 0.94, by - 0.5 * s], [Rbowl, by],
+    [Rbowl * 0.93, by + 0.5 * s], [Rbowl * 0.6, by + 0.35 * s], [Rbowl * 0.25, by + 0.42 * s], [0.02, by + 0.46 * s]].map((p) => new THREE.Vector2(p[0], p[1]));
+  const nv = Math.round(124 * DETAIL), nu = Math.round(76 * DETAIL);
+  const prof = new THREE.SplineCurve(pts).getSpacedPoints(nv);
+  let arc = 0; for (let j = 1; j < prof.length; j++) arc += prof[j].distanceTo(prof[j - 1]);
+  let jRim = prof.length - 1;
+  for (let j = 0; j < prof.length; j++) if (prof[j].y >= by - 0.25) { jRim = j; break; }
+  const rAtY = (y) => {
+    for (let j = 1; j <= jRim; j++) if (prof[j].y >= y) { const a = prof[j - 1], b = prof[j]; return lerp(a.x, b.x, (y - a.y) / Math.max(1e-6, b.y - a.y)); }
+    return prof[jRim].x;
+  };
+  const vAt = (y) => { for (let j = 0; j < prof.length; j++) if (prof[j].y >= y) return j / nv; return 1; };
+
+  const L = rng.int(7, 12), phL = rng() * TAU, twL = rng.range(-0.12, 0.12), lobeAmp = rng.range(0.7, 1.4) * P.puff * s;
+  const Pc = rng.int(14, 26), phP = rng() * TAU, twP = rng.range(-1.4, 1.4), pleatAmp = rng.range(0.07, 0.14) * P.puff;
+  const wob = makeWob(rng, 3, 0.05);
+  const modR = (r0, y, th) => {
+    let r = r0;
+    const wl = 1 - smooth(0, H * 0.26, y);
+    if (wl > 0) r += wl * lobeAmp * (Math.pow(0.5 + 0.5 * Math.cos(L * th + phL + twL * y), 2.5) - 0.25);
+    const wp = smooth(H * 0.1, H * 0.28, y) * (1 - smooth(H * 0.62, by - 0.3, y));
+    if (wp > 0) r *= 1 + wp * pleatAmp * (Math.pow(Math.abs(Math.sin(Pc * th * 0.5 + phP + twP * y / H)), 0.55) - 0.65) * 2;
+    r *= 1 + wob(th) * smooth(0, H * 0.5, y);
+    return Math.max(r, 0.01);
+  };
+
+  // body: flared base with drape lobes, pleated waist, trumpet bowl, platform
+  g.add(mesh(gridGeometry(nu, nv, (u, v, i, j, o) => {
+    const p = prof[j], th = u * TAU, r = modR(p.x, p.y, th), [lx, lz] = leanAt(p.y);
+    o.set(r * Math.cos(th) + lx, p.y, r * Math.sin(th) + lz);
+  }, { flip: true }), patchMat({ seed: rng() * 100, su: Math.max(4, Math.round(TAU * (Rb + rw + Rbowl) / 3 / cell)), sv: arc / cell,
+    band: [vAt(H * 0.15), vAt(by - 0.8), clamp(P.stripes * rng.range(0.7, 1.3), 0, 1), 1.7] })));
+
+  // pointed drip skirt hanging from the bowl
+  if (rng.chance(P.spikes * 0.85)) {
+    const K = rng.int(7, 13), phK = rng(), lens = Array.from({ length: K }, () => rng.range(0.45, 1));
+    const yA = by - 0.1, dripMax = (yA - wy) * rng.range(0.5, 0.9), offP = 0.3 * P.puff * s;
+    g.add(mesh(gridGeometry(Math.round(K * 12 * DETAIL), 14, (u, v, i, j, o) => {
+      const th = u * TAU, f = u * K + phK, k = ((Math.floor(f) % K) + K) % K, fr = f - Math.floor(f);
+      const tri = 1 - Math.abs(2 * fr - 1);
+      const y = yA - (0.3 + dripMax * lens[k] * Math.pow(tri, 1.35)) * v;
+      const r = modR(rAtY(y), y, th) + 0.07 + offP * Math.sin(Math.PI * clamp(v * 0.9 + 0.1, 0, 1));
+      const [lx, lz] = leanAt(y);
+      o.set(r * Math.cos(th) + lx, y, r * Math.sin(th) + lz);
+    }), patchMat({ seed: rng() * 100, su: K * 2, sv: 3.5, double: true, cloth: true }), false));
+  }
+
+  // fat collar tubes stacked on the rim
+  const nC = rng.chance(0.3) ? 1 : rng.chance(0.6) ? 2 : 3;
+  let cy = by + 0.05, cR = Rbowl * 0.99, prevRt = 0, maxRt = 0;
+  for (let c = 0; c < nC; c++) {
+    const rt = rng.range(0.75, 1.2) * Math.pow(P.puff, 0.6) * s * (c === 0 ? 1 : rng.range(0.75, 1.0));
+    if (c > 0) { cy += prevRt * 0.7 + rt * 0.7; cR *= rng.range(0.9, 0.98); }
+    const R0 = cR + rt * 0.15;
+    const solid = rng.chance(0.6) ? rng.pick([C.blue, C.blue, C.cobalt, C.yellow, C.yellow, C.orange, C.lime, C.pink]) : -1;
+    g.add(mesh(ringGeo((p) => R0 * (1 + wob(p)), cy, rt, rng.range(0, 0.25), rng() * TAU, 0.12, rng() * TAU, leanAt, Math.round(92 * DETAIL), Math.round(18 * DETAIL) + 2),
+      patchMat({ seed: rng() * 100, su: Math.round(TAU * R0 / cell), sv: Math.max(2, Math.round(TAU * rt / cell * 1.4)), solid })));
+    prevRt = rt; maxRt = Math.max(maxRt, rt);
+  }
+  const collarTop = cy + prevRt;
+
+  // cuff belt around the waist
+  if (rng.chance(0.45)) {
+    const yb = lerp(H * 0.2, wy, rng.range(0.3, 0.8)), rtb = rng.range(0.4, 0.7) * Math.pow(P.puff, 0.6) * s, r0 = rAtY(yb);
+    g.add(mesh(ringGeo((p) => modR(r0, yb, p) + rtb * 0.35, yb, rtb, 0.05, rng() * TAU, 0.1, rng() * TAU, leanAt, Math.round(96 * DETAIL), 16),
+      patchMat({ seed: rng() * 100, su: Math.round(TAU * r0 / cell * 1.5), sv: 2, solid: rng.chance(0.5) ? rng.pick([C.yellow, C.blue, C.pink, C.orange]) : -1 })));
+  }
+
+  // trumpet caps on the platform
+  const topY = by + 0.35 * s;
+  const nCaps = rng.chance(0.3) ? 1 : (rng.chance(0.7) ? 2 : 3);
+  let capTop = topY;
+  for (let k = 0; k < nCaps; k++) {
+    const sc = (k === 0 ? rng.range(0.95, 1.25) : rng.range(0.5, 0.75)) * s * Math.sqrt(P.height);
+    const ang = rng() * TAU, rad = k === 0 ? rng.range(0, 0.6) * s : Rbowl * rng.range(0.42, 0.6);
+    const cap = buildCap(rng, sc, P, rng.chance(P.spikes * 0.7));
+    const [lx, lz] = leanAt(topY);
+    cap.group.position.set(Math.cos(ang) * rad + lx, topY, Math.sin(ang) * rad + lz);
+    g.add(cap.group);
+    capTop = Math.max(capTop, topY + cap.height);
+  }
+
+  // drooping tongues at the base
+  if (rng.chance(0.85)) {
+    const n = rng.int(2, 5);
+    for (let k = 0; k < n; k++) {
+      const a = rng() * TAU, hh = rng.range(2.2, 4.2) * s * Math.sqrt(P.puff), rx = rng.range(0.7, 1.15) * s * Math.sqrt(P.puff);
+      const m = mesh(superq(rx, hh * 0.5, rx * 0.8, 0.85, 0.9, Math.round(26 * DETAIL) + 6),
+        patchMat({ seed: rng() * 100, su: 4, sv: 3, solid: rng.chance(0.7) ? rng.pick([C.orange, C.yellow, C.pink, C.sky, C.lime, C.rose]) : -1 }));
+      const rr = modR(rAtY(0.6), 0.6, a) + rx * 0.15;
+      m.position.set(Math.cos(a) * rr, hh * 0.35, Math.sin(a) * rr);
+      const qYaw = new THREE.Quaternion().setFromAxisAngle(V3(0, 1, 0), Math.PI / 2 - a);
+      const qTilt = new THREE.Quaternion().setFromAxisAngle(V3(-Math.sin(a), 0, Math.cos(a)), rng.range(0.25, 0.5));
+      m.quaternion.copy(qTilt.multiply(qYaw));
+      g.add(m);
+    }
+  }
+
+  const info = {
+    x: T.x, z: T.z, y0, H, Rb, rimR: Rbowl, collarY: y0 + by + 0.05, small: T.small,
+    axisAt: (yW) => { const [lx, lz] = leanAt(yW - y0); return [T.x + lx, T.z + lz]; },
+    bodyR: (yW) => { const yl = yW - y0; if (yl < -0.6 || yl > by + 0.2) return 0; return (rAtY(Math.max(0, yl)) + (1 - smooth(0, H * 0.26, yl)) * lobeAmp * 0.75) * 1.04; },
+  };
+  info.avoidR = (yW) => {
+    const yl = yW - y0;
+    if (yl < -0.6) return 0;
+    if (yl <= by + 0.2) return info.bodyR(yW);
+    if (yl <= collarTop + 0.3) return Rbowl + maxRt;
+    if (yl <= capTop) return Rbowl * 0.7;
+    return 0;
+  };
+  return { group: g, info };
+}
+
+/* ---------------- layout ---------------- */
+function layout(seed, n) {
+  const towers = [];
+  const rot0 = makeRng(seed * 3 + 7)() * TAU;
+  for (let i = 0; i < n; i++) {
+    const r = makeRng(seed * 1009 + i * 7919 + 3);
+    const rad = 15.5 * Math.sqrt(i), th = i * 2.39996 + rot0, jit = i ? 4.5 : 0;
+    towers.push({ i, x: rad * Math.cos(th) + r.range(-jit, jit), z: rad * Math.sin(th) + r.range(-jit, jit), small: i > 0 && r.chance(0.35) });
+  }
+  const D = (a, b) => Math.hypot(towers[a].x - towers[b].x, towers[a].z - towers[b].z);
+  const inSet = new Array(n).fill(false); inSet[0] = true;
+  const edges = [], used = new Set();
+  for (let c = 1; c < n; c++) {
+    let best = null, bd = 1e9;
+    for (let i = 0; i < n; i++) if (inSet[i]) for (let j = 0; j < n; j++) if (!inSet[j]) { const dd = D(i, j); if (dd < bd) { bd = dd; best = [i, j]; } }
+    inSet[best[1]] = true; edges.push(best); used.add(Math.min(...best) + ':' + Math.max(...best));
+  }
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    if (used.has(i + ':' + j) || D(i, j) > 34) continue;
+    if (makeRng(seed * 37 + i * 131 + j * 977)() < 0.22) edges.push([i, j]);
+  }
+  const worldR = 15.5 * Math.sqrt(n) + 10;
+  const kr = makeRng(seed * 91 + 1), knots = [];
+  for (let k = 0; k < Math.max(1, Math.round(n / 3)); k++) {
+    for (let t = 0; t < 25; t++) {
+      const rr = Math.sqrt(kr()) * worldR * 0.85, th = kr() * TAU, x = rr * Math.cos(th), z = rr * Math.sin(th);
+      if (towers.every((T) => Math.hypot(T.x - x, T.z - z) > 13)) { knots.push({ x, z }); break; }
+    }
+  }
+  return { towers, edges, worldR, knots };
+}
+
+/* ---------------- tentacle specs: bridges, arms, serpents ---------------- */
+function tentacleSpecs(L, infos, P, seed) {
+  const specs = [];
+  const ds = 0.5;
+  L.edges.forEach(([i, j]) => {
+    const rng = makeRng(seed * 31 + i * 977 + j * 131 + 5);
+    const A = infos[i], B = infos[j];
+    if (Math.hypot(B.x - A.x, B.z - A.z) - A.rimR - B.rimR < 4 || !rng.chance(0.85)) return;
+    const mk = (S, E) => {
+      const ux = E.x - S.x, uz = E.z - S.z, l = Math.hypot(ux, uz), dx = ux / l, dz = uz / l;
+      const [ax, az] = S.axisAt(S.collarY), [bx, bz] = E.axisAt(E.collarY);
+      return { seed: rng.int(1, 1e9), type: 'bridge', start: V3(ax + dx * S.rimR * 0.5, S.collarY - 0.4, az + dz * S.rimR * 0.5), dir: V3(dx, 0.55, dz),
+        goal: V3(bx - dx * E.rimR * 0.45, E.collarY - 0.4, bz - dz * E.rimR * 0.45), r0: rng.range(0.95, 1.5) * P.thick,
+        home: S, goalTower: E, fromTower: true, toTower: true, maxSteps: Math.round(l * 2.3 / ds), wander: 0.3 };
+    };
+    specs.push(mk(A, B));
+    if (rng.chance(0.55)) specs.push(mk(B, A));
+  });
+  infos.forEach((I, i) => {
+    const rng = makeRng(seed * 7717 + i * 331 + 9);
+    I.arms = [];
+    const n = P.arms === 0 ? 0 : Math.max(1, P.arms + rng.int(-1, 1));
+    const base = rng() * TAU;
+    let knot = null, kd = 48;
+    L.knots.forEach((K) => { const d = Math.hypot(K.x - I.x, K.z - I.z); if (d < kd) { kd = d; knot = K; } });
+    for (let k = 0; k < n; k++) {
+      const a = base + k * TAU / n + rng.range(-0.3, 0.3), d = [Math.cos(a), Math.sin(a)], nn = [-d[1], d[0]];
+      const [ax, az] = I.axisAt(I.collarY);
+      const r0 = rng.range(0.85, 1.45) * P.thick * (I.small ? 0.8 : 1);
+      const sp = { seed: rng.int(1, 1e9), start: V3(ax + d[0] * I.rimR * 0.5, I.collarY - 0.4, az + d[1] * I.rimR * 0.5), dir: V3(d[0] * 0.85, 0.4, d[1] * 0.85),
+        r0, home: I, fromTower: true, angle: a, wander: 0.4 };
+      const roll = rng();
+      if (roll < 0.14) {
+        sp.type = 'curl'; sp.dir.y = 0.75; sp.curlAt = rng.range(9, 16);
+        sp.curlAxis = V3(nn[0], rng.range(-0.3, 0.3), nn[1]).normalize().multiplyScalar(rng.sign());
+        sp.maxSteps = Math.round((sp.curlAt + 13) / ds); sp.wander = 0.3;
+      } else {
+        let gx, gz;
+        if (roll < 0.36 && knot) { gx = knot.x + rng.range(-3, 3); gz = knot.z + rng.range(-3, 3); sp.type = 'knot'; }
+        else { const dist = I.rimR + rng.range(12, 26), side = rng.range(-1, 1) * dist * 0.3; gx = I.x + d[0] * dist + nn[0] * side; gz = I.z + d[1] * dist + nn[1] * side; sp.type = 'ground'; }
+        sp.goal = V3(gx, heightAt(gx, gz) - r0 * 1.6, gz);
+        sp.maxSteps = Math.round(sp.start.distanceTo(sp.goal) * 2.4 / ds);
+        if (P.winding > 0 && rng.chance(0.22 * P.winding + 0.04)) sp.spiral = true;
+      }
+      specs.push(sp); I.arms.push(sp);
+    }
+  });
+  const sr = makeRng(seed * 211 + 17), nS = Math.round(infos.length * 0.5) + 1;
+  for (let k = 0; k < nS; k++) {
+    let x = 0, z = 0, ok = false;
+    for (let t = 0; t < 30 && !ok; t++) {
+      const rr = Math.sqrt(sr()) * L.worldR * 0.95, th = sr() * TAU; x = rr * Math.cos(th); z = rr * Math.sin(th);
+      ok = infos.every((I) => Math.hypot(I.x - x, I.z - z) > I.Rb + 6);
+    }
+    if (!ok) continue;
+    const a = sr() * TAU, len = sr.range(20, 38), r0 = sr.range(0.8, 1.3) * P.thick;
+    const gx = x + Math.cos(a) * len, gz = z + Math.sin(a) * len;
+    specs.push({ seed: sr.int(1, 1e9), type: 'serpent', start: V3(x, heightAt(x, z) - r0 * 1.4, z), dir: V3(Math.cos(a), 0.6, Math.sin(a)),
+      goal: V3(gx, heightAt(gx, gz) - r0 * 1.4, gz), r0, amp: sr.range(1.2, 2.6) * r0, period: sr.range(10, 17), maxSteps: Math.round(len * 2 / ds), wander: 0.35 });
+  }
+  return specs;
+}
+
+/* ---------------- tentacle growth: agents that sense, coil and wind ---------------- */
+function makeGrower(infos, P) {
+  const CS = 4, hash = new Map(), recs = [];
+  const key = (ix, iy, iz) => ((ix + 512) * 256 + (iy + 64)) * 1024 + (iz + 512);
+  const insert = (ri) => {
+    recs[ri].pts.forEach((p, pi) => {
+      const k = key(Math.floor(p.x / CS), Math.floor(p.y / CS), Math.floor(p.z / CS));
+      let a = hash.get(k); if (!a) hash.set(k, a = []); a.push(ri, pi);
+    });
+  };
+  const nearest = (p, maxD) => {
+    const r = Math.ceil(maxD / CS), ix = Math.floor(p.x / CS), iy = Math.floor(p.y / CS), iz = Math.floor(p.z / CS);
+    let bd = maxD * maxD, bt = -1, bp = -1;
+    for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) {
+      const a = hash.get(key(ix + dx, iy + dy, iz + dz)); if (!a) continue;
+      for (let k = 0; k < a.length; k += 2) {
+        const q = recs[a[k]].pts[a[k + 1]], d2 = (q.x - p.x) ** 2 + (q.y - p.y) ** 2 + (q.z - p.z) ** 2;
+        if (d2 < bd) { bd = d2; bt = a[k]; bp = a[k + 1]; }
+      }
+    }
+    return bt < 0 ? null : { ti: bt, pi: bp, d: Math.sqrt(bd) };
+  };
+  const W = V3(0, 0, 0), Gv = V3(0, 0, 0), Tv = V3(0, 0, 0), Nv = V3(0, 0, 0), Av = V3(0, 0, 0), UP = V3(0, 1, 0);
+  function grow(sp) {
+    const rng = makeRng(sp.seed);
+    const ds = 0.5, r0 = sp.r0;
+    const p = sp.start.clone(), dir = sp.dir.clone().normalize();
+    const pts = [p.clone()];
+    let state = null, wraps = 0, cool = 0, maxSteps = sp.maxSteps, reached = false;
+    const maxWraps = Math.round(1 + P.winding * 2);
+    const ph = [rng() * TAU, rng() * TAU, rng() * TAU, rng() * TAU];
+    const tried = new Set();
+    for (let st = 0; st < maxSteps && st < 1100; st++) {
+      const sl = st * ds;
+      W.set(0, 0, 0);
+      let dG = Infinity;
+      if (sp.goal) { Gv.subVectors(sp.goal, p); dG = Gv.length(); if (dG < 1.0) { reached = true; break; } }
+      let turn = 0.16;
+      const hHere = Math.max(0, heightAt(p.x, p.z));
+      if (sp.spiral && st === 6 && !state) { state = { kind: 'tower', I: sp.home, along: -1, spin: rng.sign(), steps: 600 }; maxSteps += 300; }
+      if (state && state.kind === 'tent') {
+        // coil around another tentacle
+        const R = recs[state.ti], n = R.pts.length;
+        let bi = state.pi, bd = Infinity;
+        for (let k = Math.max(1, state.pi - 8); k <= Math.min(n - 2, state.pi + 8); k++) { const d2 = R.pts[k].distanceToSquared(p); if (d2 < bd) { bd = d2; bi = k; } }
+        state.pi = bi;
+        const q = R.pts[bi];
+        Tv.subVectors(R.pts[bi + 1], R.pts[bi - 1]).normalize();
+        Nv.subVectors(p, q); Nv.addScaledVector(Tv, -Nv.dot(Tv));
+        let dp = Nv.length();
+        if (dp < 1e-3) { Nv.crossVectors(Tv, UP); if (Nv.lengthSq() < 1e-6) Nv.set(1, 0, 0); Nv.normalize(); dp = 0; } else Nv.divideScalar(dp);
+        const D = (r0 + R.rad[bi]) * 0.88;
+        Av.crossVectors(Tv, Nv).multiplyScalar(state.spin);
+        W.addScaledVector(Tv, state.along * 0.55).add(Av).addScaledVector(Nv, clamp((D - dp) * 0.8, -1.5, 1.5));
+        turn = 0.6;
+        if (--state.steps <= 0 || bi <= 2 || bi >= n - 3 || p.y - r0 < hHere) { state = null; cool = 14; }
+      } else if (state && state.kind === 'tower') {
+        // coil around a tower body
+        const I = state.I, [ax, az] = I.axisAt(p.y), R = I.bodyR(p.y);
+        Nv.set(p.x - ax, 0, p.z - az); let dp = Nv.length();
+        if (dp < 1e-3) { Nv.set(1, 0, 0); dp = 0; } else Nv.divideScalar(dp);
+        Av.crossVectors(UP, Nv).multiplyScalar(state.spin);
+        W.addScaledVector(UP, state.along * 0.32).add(Av).addScaledVector(Nv, clamp((R + r0 * 0.9 - dp) * 0.8, -1.5, 1.5));
+        turn = 0.55;
+        if (R <= 0 || --state.steps <= 0 || (state.along < 0 && p.y - r0 < hHere + 0.4) || (state.along > 0 && p.y > I.collarY - 1.5)) { state = null; cool = 16; }
+      } else {
+        if (sp.goal) W.addScaledVector(Gv, (0.3 + 2.6 * Math.pow(st / maxSteps, 2)) / dG);
+        const t = sl * 0.09, wd = sp.wander;
+        W.x += wd * (Math.sin(t * 1.3 + ph[0]) + 0.5 * Math.sin(t * 2.9 + ph[1]));
+        W.y += wd * 0.6 * Math.sin(t * 1.1 + ph[2]);
+        W.z += wd * (Math.cos(t * 1.7 + ph[3]) + 0.5 * Math.sin(t * 2.3 + ph[0]));
+        if (sp.type === 'curl' && sl > sp.curlAt) { Av.crossVectors(dir, sp.curlAxis); W.copy(dir).addScaledVector(Av, 0.7 + (sl - sp.curlAt) * 0.12); turn = 0.45; }
+        if (sp.type === 'serpent') W.y += (hHere + sp.amp * (0.35 + Math.sin(sl * TAU / sp.period - Math.PI / 2)) - p.y) * 0.3;
+        // sense other tentacles: wind around them, or slide past
+        const nb = nearest(p, r0 + 5.5);
+        if (nb) {
+          const R = recs[nb.ti], q = R.pts[nb.pi], rq = R.rad[nb.pi];
+          const canWrap = cool <= 0 && wraps < maxWraps && sl > 4 && dG > 8 && P.winding > 0 && nb.pi > 4 && nb.pi < R.pts.length - 5
+            && q.y > Math.max(0, heightAt(q.x, q.z)) + rq * 0.5 && p.y > hHere + r0;
+          if (canWrap && nb.d < r0 + rq + 2.5 && rng.chance(P.winding * 0.9)) {
+            Tv.subVectors(R.pts[nb.pi + 1], R.pts[nb.pi - 1]).normalize();
+            const steps = rng.int(18, 46);
+            state = { kind: 'tent', ti: nb.ti, pi: nb.pi, along: Math.sign(dir.dot(Tv)) || 1, spin: rng.sign(), steps };
+            wraps++; maxSteps += steps;
+          } else {
+            const need = r0 + rq * 0.95 + 0.2;
+            if (nb.d < need) { Nv.subVectors(p, q); const l = Nv.length() || 1; W.addScaledVector(Nv, (need - nb.d) / l * 2.2); }
+          }
+        }
+        // sense towers: coil up/down them, or steer around
+        if (!state) for (const I of infos) {
+          const [ax, az] = I.axisAt(p.y), dx = p.x - ax, dz = p.z - az, d = Math.hypot(dx, dz);
+          if (d > I.rimR + 12) continue;
+          if (I === sp.goalTower && dG < 12) continue;
+          const R = I.avoidR(p.y); if (R <= 0) continue;
+          if (d < R + r0 + 2 && I !== sp.home && !tried.has(I) && P.winding > 0 && I.bodyR(p.y) > 0 && cool <= 0) {
+            tried.add(I);
+            if (rng.chance(P.winding * 0.3)) { const steps = rng.int(25, 60); state = { kind: 'tower', I, along: dir.y >= -0.1 ? 1 : -1, spin: rng.sign(), steps }; maxSteps += steps; break; }
+          }
+          if (d < R + r0 + 0.8) W.addScaledVector(Nv.set(dx / (d || 1), 0, dz / (d || 1)), (R + r0 + 0.8 - d) * 1.5);
+        }
+        if (sp.type !== 'serpent' && dG > 7) { const lift = hHere + r0 * 0.85 - p.y; if (lift > 0) W.y += lift * 0.8 + 0.25; }
+      }
+      if (W.lengthSq() < 1e-8) W.copy(dir);
+      W.normalize();
+      dir.lerp(W, turn);
+      if (dir.lengthSq() < 0.0025) dir.copy(W);
+      dir.normalize();
+      p.addScaledVector(dir, ds);
+      if (p.y < -2.5) p.y = -2.5;
+      pts.push(p.clone());
+      if (cool > 0) cool--;
+    }
+    if (sp.goal && !reached) {
+      const q = p.clone(), n = Math.ceil(q.distanceTo(sp.goal) / ds);
+      for (let k = 1; k <= n; k++) pts.push(q.clone().lerp(sp.goal, k / n));
+    }
+    // radius: slow swells, fillet flares into towers and wherever it meets the ground
+    const n = pts.length, Ltot = (n - 1) * ds, segLen = r0 * 2.4, bph = rng() * TAU;
+    const rad = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const s = i * ds, q = pts[i];
+      let r = r0 * (1 + 0.16 * Math.sin(s * 0.3 + bph) + 0.08 * Math.sin(s * 0.83 + bph * 2));
+      if (sp.fromTower) r *= 1 + 0.5 * Math.exp(-s / 3.5);
+      if (sp.toTower) r *= 1 + 0.5 * Math.exp(-(Ltot - s) / 3.5);
+      if (i > 6) { const above = q.y - Math.max(0, heightAt(q.x, q.z)); r *= 1 + 0.85 * Math.exp(-Math.abs(above) / (r0 * 1.1)); }
+      if (sp.type === 'curl') { r *= lerp(1, 0.6, s / Ltot); const cap = r0 * 1.4; if (s > Ltot - cap) r *= Math.sqrt(Math.max(0.03, 1 - Math.pow((s - (Ltot - cap)) / cap, 2))); }
+      r *= 0.9 + 0.1 * Math.pow(Math.abs(Math.sin(Math.PI * s / segLen)), 0.4);
+      rad[i] = r;
+    }
+    const rec = { pts, rad, rad0: r0, sp };
+    recs.push(rec); insert(recs.length - 1); sp.rec = rec;
+    return rec;
+  }
+  const nearestOther = (p, maxD, ex) => {
+    const r = Math.ceil(maxD / CS), ix = Math.floor(p.x / CS), iy = Math.floor(p.y / CS), iz = Math.floor(p.z / CS);
+    let bd = maxD * maxD, bt = -1, bp = -1;
+    for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) {
+      const a = hash.get(key(ix + dx, iy + dy, iz + dz)); if (!a) continue;
+      for (let k = 0; k < a.length; k += 2) {
+        if (a[k] === ex) continue;
+        const q = recs[a[k]].pts[a[k + 1]], d2 = (q.x - p.x) ** 2 + (q.y - p.y) ** 2 + (q.z - p.z) ** 2;
+        if (d2 < bd) { bd = d2; bt = a[k]; bp = a[k + 1]; }
+      }
+    }
+    return bt < 0 ? null : { ti: bt, pi: bp, d: Math.sqrt(bd) };
+  };
+  return { grow, recs, nearestOther };
+}
+
+/* how knotted each tentacle is: the share of its length pressed against other tentacles.
+   Knotted ones get a small colour family in big pieces (different from what they wrap), freestanding ones keep the full patchwork */
+function knotStyles(grower, sd) {
+  const recs = grower.recs, n = recs.length, score = new Array(n).fill(0), nbr = Array.from({ length: n }, () => new Set());
+  recs.forEach((R, i) => {
+    let touch = 0, samples = 0;
+    for (let k = 0; k < R.pts.length; k += 2) {
+      const p = R.pts[k];
+      if (p.y < Math.max(0, heightAt(p.x, p.z)) - 0.3) continue;
+      samples++;
+      const q = grower.nearestOther(p, R.rad[k] + 3.4, i);
+      if (q && q.d < (R.rad[k] + recs[q.ti].rad[q.pi]) * 1.03 + 0.05) { touch++; nbr[i].add(q.ti); nbr[q.ti].add(i); }
+    }
+    score[i] = samples ? touch / samples : 0;
+  });
+  const rng = makeRng(sd * 431 + 9), fam = new Array(n).fill(-1), styles = new Array(n).fill(null);
+  // ranked within this world: the most knotted ~40% get a family, the next ~25% a family plus an accent, the rest stay mixed
+  const sorted = [...score].sort((x, y) => x - y), qt = (f) => sorted.length ? sorted[Math.floor(f * (sorted.length - 1))] : 1;
+  const tKnot = Math.max(0.6, qt(0.6)), tMid = Math.max(0.35, qt(0.35));
+  [...Array(n).keys()].sort((a, b) => score[b] - score[a]).forEach((i) => {
+    if (score[i] < tMid) return;
+    const used = new Set(); nbr[i].forEach((j) => { if (fam[j] >= 0) used.add(fam[j]); });
+    const start = rng.int(0, FAMILIES.length - 1); let f = start;
+    for (let t = 0; t < FAMILIES.length; t++) { const c = (start + t) % FAMILIES.length; if (!used.has(c)) { f = c; break; } }
+    fam[i] = f;
+    const F = FAMILIES[f], knotted = score[i] >= tKnot, swap = rng.chance(0.5);
+    const a = swap ? F[1] : F[0], b = swap ? F[0] : F[1], c = knotted ? F[2] : rng.int(0, PAL.length - 1);
+    styles[i] = { sub: [a, b, c, knotted ? (rng.chance(0.55) ? 2 : 3) : 3], scale: knotted ? 2.4 : 1.6 };
+  });
+  return styles;
+}
+
+function meshTentacle(rec, P, style = null) {
+  const rng = makeRng(rec.sp.seed + 77);
+  const grp = new THREE.Group();
+  const src = rec.pts, dec = [];
+  for (let i = 0; i < src.length; i += 2) dec.push(src[i]);
+  if ((src.length - 1) % 2) dec.push(src[src.length - 1]);
+  if (dec.length < 3) return null;
+  const curve = new THREE.CatmullRomCurve3(dec, false, 'centripetal');
+  curve.arcLengthDivisions = Math.max(200, dec.length * 4);
+  const L = curve.getLength(), n = rec.rad.length;
+  const radiusFn = (v) => { const f = clamp(v, 0, 1) * (n - 1), i = Math.floor(f), t = f - i; return lerp(rec.rad[i], rec.rad[Math.min(n - 1, i + 1)], t); };
+  const segs = clamp(Math.round(L * 1.9 * DETAIL), 20, 260), rads = Math.round(22 * DETAIL) + 4;
+  const solid = rng.chance(0.28) ? rng.pick([C.blue, C.blue, C.cobalt, C.yellow, C.orange, C.pink, C.lime, C.violet, C.sky]) : -1;
+  const sc = style ? style.scale : 1;
+  const mat = patchMat({ seed: rng() * 100, su: Math.max(2, Math.round(TAU * rec.rad0 / (P.cell * 1.15 * sc))), sv: L / (P.cell * sc),
+    band: style ? [0, 0, 0, 1] : [0, 1, P.stripes * 0.4, 0.7], solid: style ? -1 : solid, sub: style ? style.sub : undefined });
+  tubeChunks(curve, segs, rads, radiusFn).forEach((g) => grp.add(mesh(g, mat)));
+  const fins = [];
+  if (rec.sp.type !== 'serpent' && rng.chance(P.spikes * 0.5)) {
+    const teeth = Math.max(4, Math.round(L * 0.55)), finH = rec.rad0 * rng.range(0.7, 1.3);
+    const fm = patchMat({ seed: rng() * 100, su: teeth * 1.2, sv: 1.5, double: true, cloth: true, sub: style ? style.sub : undefined });
+    const fa = mesh(finGeometry(curve, radiusFn, 0.2, 0.75, teeth, finH, rng, 0.32), fm, false);
+    const fb = mesh(finGeometry(curve, radiusFn, 0.22, 0.75, teeth, finH * 0.85, rng, -0.32), fm, false);
+    grp.add(fa, fb); fins.push(fa, fb);
+  }
+  return { group: grp, mat, fins };
+}
+
+/* puffy fabric web stretched between two neighbouring arms */
+function buildWeb(A, B, rng, P) {
+  const exitIdx = (R) => {
+    const I = R.sp.home;
+    for (let i = 0; i < R.pts.length; i++) { const p = R.pts[i], [ax, az] = I.axisAt(p.y); if (Math.hypot(p.x - ax, p.z - az) > I.rimR + R.rad0 * 0.6) return i; }
+    return 0;
+  };
+  const a0 = exitIdx(A), b0 = exitIdx(B), nA = A.pts.length, nB = B.pts.length;
+  const a1 = a0 + Math.round((nA - a0) * rng.range(0.3, 0.5)), b1 = b0 + Math.round((nB - b0) * rng.range(0.3, 0.5));
+  if (a1 - a0 < 8 || b1 - b0 < 8) return null;
+  const nt = Math.round(30 * DETAIL) + 6, nw = Math.round(14 * DETAIL) + 4;
+  const at = (R, f) => { const i = Math.min(R.pts.length - 1, Math.floor(f)), t = f - i, j = Math.min(R.pts.length - 1, i + 1); return [R.pts[i].clone().lerp(R.pts[j], t), lerp(R.rad[i], R.rad[j], t)]; };
+  const railA = [], railB = [];
+  let maxSpan = 0, minSpan = 1e9, lenA = 0;
+  for (let k = 0; k <= nt; k++) {
+    const t = k / nt, [pa, ra] = at(A, lerp(a0, a1, t)), [pb, rb] = at(B, lerp(b0, b1, t));
+    const span = pa.distanceTo(pb); maxSpan = Math.max(maxSpan, span); minSpan = Math.min(minSpan, span);
+    const dv = pb.clone().sub(pa).normalize();
+    pa.addScaledVector(dv, ra * 0.55); pb.addScaledVector(dv, -rb * 0.55);
+    railA.push(pa); railB.push(pb); if (k) lenA += pa.distanceTo(railA[k - 1]);
+  }
+  if (maxSpan > 22 || minSpan < 1.5) return null;
+  const sag = rng.range(0.12, 0.3), thick0 = 0.16 * Math.pow(P.puff, 0.7);
+  const tA = V3(0, 0, 0), tB = V3(0, 0, 0);
+  const S = (t, w, out) => {
+    const f = clamp(t, 0, 1) * nt, k = Math.min(nt - 1, Math.floor(f)), u = f - k;
+    tA.copy(railA[k]).lerp(railA[k + 1], u); tB.copy(railB[k]).lerp(railB[k + 1], u);
+    const span = tA.distanceTo(tB);
+    out.copy(tA).lerp(tB, w); out.y -= sag * span * Math.sin(Math.PI * w);
+    const h = Math.max(0, heightAt(out.x, out.z)) + 0.4; if (out.y < h) out.y = h;
+    return span;
+  };
+  const Pm = V3(0, 0, 0), P0 = V3(0, 0, 0), P1 = V3(0, 0, 0), e1 = V3(0, 0, 0), e2 = V3(0, 0, 0), nr = V3(0, 0, 0);
+  const grp = new THREE.Group();
+  const mat = patchMat({ seed: rng() * 100, su: maxSpan / (P.cell * 1.2), sv: lenA / (P.cell * 1.2), band: [0, 1, clamp(P.stripes * 1.2, 0, 1), 1.0], double: true });
+  for (const sign of [1, -1]) {
+    const dirs = [];
+    const geo = gridGeometry(nw, nt, (u, v, i, j, o) => {
+      const span = S(v, u, Pm), e = 0.01;
+      S(v + e, u, P0); S(v - e, u, P1); e1.subVectors(P0, P1);
+      S(v, Math.min(1, u + e), P0); S(v, Math.max(0, u - e), P1); e2.subVectors(P0, P1);
+      nr.crossVectors(e1, e2).normalize();
+      const th = Math.min(span * thick0, 1.8) * Math.sin(Math.PI * u) * Math.pow(Math.sin(Math.PI * v), 0.6);
+      o.copy(Pm).addScaledVector(nr, sign * th);
+      dirs.push(nr.x * sign, nr.y * sign, nr.z * sign);
+      return [u, v, th];
+    }, { wrapU: false });
+    const N = geo.attributes.normal.array;
+    for (let k = 0; k < dirs.length; k += 3) if (N[k] * dirs[k] + N[k + 1] * dirs[k + 1] + N[k + 2] * dirs[k + 2] < 0) { N[k] = -N[k]; N[k + 1] = -N[k + 1]; N[k + 2] = -N[k + 2]; }
+    grp.add(mesh(geo, mat));
+  }
+  return { group: grp, mat };
+}
+
+function buildScatter(rng, P, infos, L) {
+  let x = 0, z = 0, ok = false;
+  for (let t = 0; t < 30 && !ok; t++) {
+    const r = Math.sqrt(rng()) * L.worldR, th = rng() * TAU;
+    x = r * Math.cos(th); z = r * Math.sin(th);
+    ok = infos.every((I) => Math.hypot(I.x - x, I.z - z) > I.Rb + 6);
+  }
+  if (!ok) return null;
+  const g = new THREE.Group();
+  g.position.set(x, heightAt(x, z) - 0.45, z); g.rotation.y = rng() * TAU;
+  const kind = rng();
+  if (kind < 0.4) {
+    const stairs = rng.chance(0.45), n = rng.int(3, 6);
+    for (let k = 0; k < n; k++) {
+      const w = rng.range(2.2, 4.2), d = rng.range(2.2, 4.2), h = stairs ? (k + 1) * 0.9 : rng.range(1.2, 2.6);
+      const m = mesh(superq(w / 2, h / 2, d / 2, 0.35, 0.35, Math.round(24 * DETAIL) + 6),
+        patchMat({ seed: rng() * 100, su: 4, sv: 3, solid: rng.chance(0.45) ? rng.int(0, 11) : -1 }));
+      if (stairs) m.position.set(k * 2.0, h / 2, rng.range(-0.3, 0.3));
+      else m.position.set(rng.range(-3.5, 3.5), h / 2 + (k > 2 && rng.chance(0.4) ? 1.6 : 0), rng.range(-3.5, 3.5));
+      m.rotation.y = rng.range(-0.3, 0.3);
+      g.add(m);
+    }
+  } else if (kind < 0.75) {
+    g.add(buildCap(rng, rng.range(0.9, 1.6) * Math.sqrt(P.height), P, rng.chance(P.spikes * 0.6)).group);
+  } else {
+    const ry = rng.range(0.9, 1.5);
+    g.add(mesh(superq(rng.range(3, 5), ry, rng.range(3, 5), 0.55, 0.5, Math.round(32 * DETAIL) + 6), patchMat({ seed: rng() * 100, su: 7, sv: 5 })).translateY(ry * 0.5));
+  }
+  return g;
+}
+
+
+/* ================= renderer, scene, sky ================= */
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.6 : 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.NeutralToneMapping ?? THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const FOG = new THREE.Color('#d3e2f1');
+scene.background = FOG.clone();
+scene.fog = new THREE.Fog(FOG, 45, 240);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.5;
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(60, 40, 60);
+scene.add(new THREE.HemisphereLight('#cfe2ff', '#f0dcc0', 1.15));
+const sunDir = V3(0.55, 0.78, 0.3).normalize();
+const sun = new THREE.DirectionalLight('#fff1dc', 2.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 260 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.08;
+scene.add(sun, sun.target);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uSun: { value: sunDir }, uT: U_TIME },
+  vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: `varying vec3 vD; uniform vec3 uSun; uniform float uT;
+    float hh(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+    float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hh(i),hh(i+vec2(1,0)),f.x), mix(hh(i+vec2(0,1)),hh(i+vec2(1,1)),f.x), f.y); }
+    float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*vn(p); p=p*2.03+vec2(1.7,9.2); a*=0.5; } return s; }
+    void main(){ vec3 d = normalize(vD); float h = clamp(d.y, 0.0, 1.0);
+      vec3 col = mix(vec3(0.827,0.886,0.945), vec3(0.37,0.58,0.88), pow(h, 0.55));
+      vec2 p = d.xz / (d.y + 0.12); vec2 q = vec2(p.x * 0.35 + p.y * 0.2, p.y * 1.6 - p.x * 0.4);
+      col = mix(col, vec3(1.0), smoothstep(0.52, 0.86, fbm(q * 1.4 + vec2(uT * 0.006, 0.0))) * smoothstep(0.03, 0.3, d.y) * 0.6);
+      float s = max(dot(d, normalize(uSun)), 0.0); col += vec3(1.0, 0.95, 0.85) * (pow(s, 700.0) * 1.5 + pow(s, 10.0) * 0.12);
+      gl_FragColor = vec4(col, 1.0); }`,
+}));
+sky.renderOrder = -1; scene.add(sky);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: '#e7dcc6', roughness: 0.96 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+/* ================= building a level: same world on both phones ================= */
+// the host grows the tentacles (their growth is chaotic, so tiny maths differences between phones would change them) and sends them along
+const NP = { towers: 9, height: 1.1, arms: 3, thick: 1.22, winding: 0.6, webs: 0.5, puff: 1.03, cell: 1.48, stripes: 0.5, spikes: 0.3 };
+const K_GROUND = 0, K_TOWER = 1, K_TUBE = 2, K_WEB = 3, K_CLOTH = 4, K_PILLOW = 5;
+const KIND_BOUNCE = [1.0, 0.45, 0.25, 1.1, 0, 0.9];
+let world = null, tasks = [], building = false, worldR = 60;
+const solids = [], anims = [];
+function addSolids(g, kind) {
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    o.userData.kind = o.userData.walk === false ? K_CLOTH : kind;
+    if (o.userData.kind === K_CLOTH || kind === K_GROUND) return;
+    o.geometry.computeBoundsTree(); solids.push(o);
+  });
+}
+function registerScale(g, delay, kind) { world.add(g); g.scale.set(1.3, 0.01, 1.3); anims.push({ g, t: -delay }); addSolids(g, kind); }
+function registerInflate(g, mats, hide, delay, kind) {
+  world.add(g); mats.forEach((m) => { m.userData.u.uInflate.value = 0; }); hide.forEach((m) => { m.visible = false; });
+  g.visible = delay <= 0; anims.push({ g, mats, hide, t: -delay, inflate: true }); addSolids(g, kind);
+}
+function disposeWorld() {
+  if (!world) return;
+  world.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+  scene.remove(world); world = null; solids.length = 0; anims.length = 0;
+}
+function updateInflation(dt) {
+  for (let i = anims.length - 1; i >= 0; i--) {
+    const a = anims[i]; a.t += dt * (reduced ? 8 : 1);
+    if (a.t < 0) continue;
+    if (a.inflate && !a.g.visible) a.g.visible = true;
+    let e = 1 - Math.exp(-4.5 * a.t) * Math.cos(7.5 * a.t);
+    if (a.t > 2.6) { e = 1; anims.splice(i, 1); }
+    if (a.inflate) { a.mats.forEach((m) => { m.userData.u.uInflate.value = Math.max(0, e); }); a.hide.forEach((m) => { m.visible = e > 0.7; }); }
+    else { const sx = 1 + (1 - e) * 0.3; a.g.scale.set(sx, Math.max(0.01, e), sx); }
+  }
+}
+const r2 = (v) => Math.round(v * 100) / 100, a3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
+const ARM_TYPES = ['ground', 'knot', 'curl'];
+function packRecs(recs, infos) {
+  return recs.map((R) => ({ t: R.sp.type || 'ground', s: R.sp.seed, r0: Math.round(R.rad0 * 1000) / 1000, h: R.sp.home ? infos.indexOf(R.sp.home) : -1,
+    a: Math.round((R.sp.angle || 0) * 1000) / 1000, sp: R.sp.spiral ? 1 : 0, p: R.pts.flatMap(a3), r: R.rad.map(r2) }));
+}
+function unpackRecs(data, infos) {
+  infos.forEach((I) => { I.arms = []; });
+  return data.map((d) => {
+    const pts = []; for (let i = 0; i < d.p.length; i += 3) pts.push(V3(d.p[i], d.p[i + 1], d.p[i + 2]));
+    const sp = { type: d.t, seed: d.s, home: d.h >= 0 ? infos[d.h] : undefined, angle: d.a, spiral: !!d.sp, r0: d.r0 };
+    const rec = { pts, rad: d.r, rad0: d.r0, sp }; sp.rec = rec;
+    if (sp.home && ARM_TYPES.includes(d.t)) sp.home.arms.push(sp);
+    return rec;
+  });
+}
+// two starting spots far apart, out in the open
+function chooseSpawns(L, infos, recs, sd) {
+  const rng = makeRng(sd * 59 + 3), cands = [];
+  for (let t = 0; t < 300 && cands.length < 36; t++) {
+    const rr = Math.sqrt(rng()) * L.worldR * 0.85, th = rng() * TAU, x = rr * Math.cos(th), z = rr * Math.sin(th);
+    if (!infos.every((I) => Math.hypot(I.x - x, I.z - z) > I.Rb + 5)) continue;
+    const p = V3(x, Math.max(0, heightAt(x, z)), z);
+    let clear = Infinity;
+    for (const R of recs) for (let i = 0; i < R.pts.length; i += 4) { const d = R.pts[i].distanceTo(p) - R.rad[i]; if (d < clear) clear = d; }
+    if (clear > 2.5) cands.push(p);
+  }
+  if (cands.length < 2) return [[-20, heightAt(-20, 0), 0], [20, heightAt(20, 0), 0]];
+  let best = [cands[0], cands[1]], bd = -1;
+  for (let i = 0; i < cands.length; i++) for (let j = i + 1; j < cands.length; j++) {
+    const d = Math.min(Math.hypot(cands[i].x - cands[j].x, cands[i].z - cands[j].z), L.worldR * 1.3);
+    if (d > bd) { bd = d; best = [cands[i], cands[j]]; }
+  }
+  return best.map(a3);
+}
+function buildLevel(lv, onDone) {
+  building = true; showLoading(lv.recs ? 'Inflating the world…' : 'Inflating a new world…');
+  disposeWorld(); world = new THREE.Group(); scene.add(world);
+  POKES.forEach((k) => { k.on = false; });
+  const P = NP, L = layout(lv.seed, P.towers); worldR = L.worldR;
+  heightAt = makeHeightFn(lv.seed, L, P);
+  const infos = []; let recs = null, styles = null, grower = null, specs = [], si = 0, mi = 0;
+  tasks = [];
+  tasks.push(() => registerScale(buildTerrain(L, P), 0, K_GROUND));
+  L.towers.forEach((T, i) => tasks.push(() => { const r = buildTower(makeRng(lv.seed * 7919 + i * 104729 + 1), T, P); infos[i] = r.info; registerScale(r.group, 0.05, K_TOWER); }));
+  if (lv.recs) tasks.push(() => { recs = unpackRecs(lv.recs, infos); styles = lv.styles || []; });
+  else {
+    tasks.push(() => { specs = tentacleSpecs(L, infos, P, lv.seed); grower = makeGrower(infos, P); });
+    const growNext = () => { if (si < specs.length) { grower.grow(specs[si++]); tasks.unshift(growNext); } };
+    tasks.push(growNext);
+    tasks.push(() => { recs = grower.recs; styles = knotStyles(grower, lv.seed); lv.recs = packRecs(recs, infos); lv.styles = styles; });
+  }
+  const meshNext = () => {
+    const end = Math.min(recs.length, mi + 3);
+    for (; mi < end; mi++) { const m = meshTentacle(recs[mi], P, styles[mi]); if (m) registerInflate(m.group, [m.mat], m.fins, 0, K_TUBE); }
+    if (mi < recs.length) tasks.unshift(meshNext);
+  };
+  tasks.push(meshNext);
+  tasks.push(() => {
+    infos.forEach((I, i) => {
+      const arms = (I.arms || []).filter((a) => a.rec && !a.spiral).sort((a, b) => a.angle - b.angle);
+      if (arms.length < 2) return;
+      const rng = makeRng(lv.seed * 613 + i * 37 + 2);
+      for (let k = 0; k < (arms.length === 2 ? 1 : arms.length); k++) {
+        const A = arms[k], B = arms[(k + 1) % arms.length], gap = (((B.angle - A.angle) % TAU) + TAU) % TAU;
+        if (gap > 1.9 || !rng.chance(P.webs * 0.75)) continue;
+        const w = buildWeb(A.rec, B.rec, rng, P);
+        if (w) registerInflate(w.group, [w.mat], [], 0.5 + k * 0.15, K_WEB);
+      }
+    });
+  });
+  const nScatter = Math.round(P.towers * 1.1) + 3;
+  for (let k = 0; k < nScatter; k += 3) tasks.push(() => {
+    for (let q = k; q < Math.min(nScatter, k + 3); q++) { const g = buildScatter(makeRng(lv.seed * 53 + q * 6007 + 11), P, infos, L); if (g) registerScale(g, 0.05, K_PILLOW); }
+  });
+  tasks.push(() => {
+    if (!lv.spawns) lv.spawns = chooseSpawns(L, infos, recs, lv.seed);
+    building = false; showLoading(null);
+    if (onDone) onDone(lv);
+  });
+}
+function runTasks(budget) { const t0 = performance.now(); while (tasks.length && performance.now() - t0 < budget) tasks.shift()(); }
+
+/* ================= the fabric gives way under you ================= */
+const POKES = Array.from({ length: 4 }, () => ({ on: false, c: V3(), r: 0, d: V3(), v: V3(), target: V3(), held: false }));
+let impactSlot = 2;
+function pokeImpact(point, n, impact) {
+  const k = POKES[impactSlot]; impactSlot = impactSlot === 2 ? 3 : 2;
+  k.on = true; k.held = false; k.c.copy(point); k.r = clamp(0.9 + impact * 0.12, 1, 3.5);
+  k.d.copy(n).multiplyScalar(-Math.min(0.4, impact * 0.03)); k.v.set(0, 0, 0); k.target.set(0, 0, 0);
+}
+function holdPoke(i, c, r, disp) { const k = POKES[i]; k.on = true; k.held = true; k.c.copy(c); k.r = r; k.target.copy(disp); }
+const sA = V3();
+function stepPokes(dt) {
+  for (let i = 0; i < POKES.length; i++) {
+    const k = POKES[i];
+    if (k.on) {
+      sA.subVectors(k.target, k.d).multiplyScalar(k.held ? 260 : 95).addScaledVector(k.v, k.held ? -26 : -7);
+      k.v.addScaledVector(sA, dt); k.d.addScaledVector(k.v, dt);
+      if (!k.held && k.d.lengthSq() < 1e-6 && k.v.lengthSq() < 1e-4) k.on = false;
+      k.held = false; k.target.set(0, 0, 0);
+    }
+    U_POKEC.value[i].set(k.c.x, k.c.y, k.c.z, k.on ? k.r : 0); U_POKED.value[i].copy(k.d);
+  }
+}
+
+/* ================= bouncy bodies: soft contact you can squeeze into and slip through ================= */
+const SET = { bounce: 0.6, squish: 0.7, g: 9.8 };
+const CP = { point: V3() }, invM = new THREE.Matrix4(), lp = V3(), sphW = new THREE.Sphere(), triA = V3(), triB = V3();
+function closestOn(m, p, maxD, out) {
+  const g = m.geometry;
+  invM.copy(m.matrixWorld).invert(); lp.copy(p).applyMatrix4(invM);
+  const r = g.boundsTree.closestPointToPoint(lp, CP, 0, maxD);
+  if (!r) return null;
+  out.point.copy(r.point).applyMatrix4(m.matrixWorld);
+  const idx = g.index.array, pos = g.attributes.position.array, f = r.faceIndex * 3, a = idx[f] * 3, b = idx[f + 1] * 3, c = idx[f + 2] * 3;
+  triA.set(pos[b] - pos[a], pos[b + 1] - pos[a + 1], pos[b + 2] - pos[a + 2]); triB.set(pos[c] - pos[a], pos[c + 1] - pos[a + 1], pos[c + 2] - pos[a + 2]);
+  out.n.crossVectors(triA, triB).transformDirection(m.matrixWorld);
+  out.dist = out.point.distanceTo(p); out.m = m;
+  return out;
+}
+const CONTACTS = Array.from({ length: 8 }, () => ({ point: V3(), n: V3(), dist: 0, m: null }));
+function contactsAt(p, maxD) {
+  let k = 0;
+  for (const m of solids) {
+    if (k >= CONTACTS.length) break;
+    const g = m.geometry; if (!g.boundsTree) continue;
+    sphW.copy(g.boundingSphere).applyMatrix4(m.matrixWorld);
+    if (sphW.distanceToPoint(p) > maxD) continue;
+    if (closestOn(m, p, maxD, CONTACTS[k])) k++;
+  }
+  return k;
+}
+function broadFlat(x, z) {
+  let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k < 6; k++) { const a = k / 6 * TAU, h = heightAt(x + Math.cos(a) * 3, z + Math.sin(a) * 3); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  return 1 - smooth(0.5, 3.2, hi - lo);
+}
+const makeBody = (r) => ({ p: V3(0, 3, 0), vel: V3(), r, groundT: 9, jumpBuf: 0, jumpHeld: false, inM: null, sq: 1, sqV: 0, face: 0, walkPh: 0, spawn: V3() });
+function bodyJump(b) { b.vel.y = Math.min(Math.max(b.vel.y, 0) + 7.5, 16); b.jumpBuf = 0; b.groundT = 9; b.sqV += 3; if (b.loud) sfx.boing(0.3); }
+const tA = V3(), tB = V3(), tC = V3(), nT = V3(), UP = V3(0, 1, 0), INQ = { point: V3(), n: V3() };
+function stepBody(b, mv, dt, loud) {
+  b.loud = loud;
+  const moving = mv.lengthSq() > 0.01;
+  if (b.jumpBuf > 0) b.jumpBuf -= dt;
+  const kOut = lerp(600, 18, Math.pow(SET.squish, 0.7)), speed = b.r > 0.6 ? 5.5 : 6;
+  const n = clamp(Math.ceil(b.vel.length() * dt / 0.1), 2, 8), h = dt / n;
+  let cDepth = 0, cN = null, cPt = null;
+  for (let s = 0; s < n; s++) {
+    b.groundT += h;
+    const inside = !!b.inM, acc = inside ? 10 : b.groundT < 0.1 ? 14 : 5;
+    if (moving || b.groundT < 0.1) { b.vel.x += (mv.x * speed - b.vel.x) * Math.min(1, acc * h); b.vel.z += (mv.z * speed - b.vel.z) * Math.min(1, acc * h); }
+    b.vel.y -= SET.g * (inside ? 0.25 : 1) * h;
+    if (inside) {
+      b.vel.multiplyScalar(Math.exp(-3.2 * h));
+      if (b.jumpHeld) b.vel.y += 9 * h;
+      const q = closestOn(b.inM, b.p, 4.5, INQ);
+      if (!q || tA.subVectors(b.p, q.point).dot(q.n) >= 0) { b.inM = null; if (loud) sfx.bloop(0.6); }
+      else { b.vel.addScaledVector(q.n, (moving ? 1.5 : 5) * h); if (loud) holdPoke(1, b.p, 1.7, tB.copy(q.n).multiplyScalar(0.32)); }
+    }
+    b.p.addScaledVector(b.vel, h);
+    const k = contactsAt(b.p, b.r + 0.02);
+    for (let i = 0; i < k; i++) {
+      const c = CONTACTS[i], dbl = c.m.material.side === THREE.DoubleSide;
+      if (!dbl && tA.subVectors(b.p, c.point).dot(c.n) < 0) { if (!b.inM) { b.inM = c.m; if (loud) sfx.bloop(1); } continue; }
+      if (b.inM === c.m) continue;
+      const depth = b.r - c.dist; if (depth <= 0) continue;
+      if (c.dist > 1e-4) nT.subVectors(b.p, c.point).divideScalar(c.dist); else nT.copy(c.n);
+      const bf = clamp(SET.bounce * KIND_BOUNCE[c.m.userData.kind ?? 1], 0, 1.05), damp = lerp(16, 1.2, Math.min(1, bf));
+      const vn = b.vel.dot(nT);
+      if (vn < -4 && depth < 0.08 && loud) { pokeImpact(c.point, nT, -vn); if (bf > 0.3) sfx.boing(clamp(-vn / 16, 0.15, 1) * bf); }
+      b.vel.addScaledVector(nT, (kOut * depth - (vn < 0 ? vn * damp : vn * damp * 0.25)) * h);
+      if (!moving) { const vnn = b.vel.dot(nT); tB.copy(b.vel).addScaledVector(nT, -vnn).multiplyScalar(Math.exp(-5 * h)); b.vel.copy(tB).addScaledVector(nT, vnn); }
+      if (nT.y > 0.5) { b.groundT = 0; if (b.jumpBuf > 0 || (b.jumpHeld && vn < -3)) bodyJump(b); }
+      if (depth > cDepth) { cDepth = depth; cN = (cN || V3()).copy(nT); cPt = (cPt || V3()).copy(c.point); }
+    }
+    const gy = Math.max(0, heightAt(b.p.x, b.p.z));
+    if (b.p.y - b.r < gy) {
+      b.p.y = gy + b.r;
+      const e = 0.35, gx = (heightAt(b.p.x + e, b.p.z) - heightAt(b.p.x - e, b.p.z)) / (2 * e), gz = (heightAt(b.p.x, b.p.z + e) - heightAt(b.p.x, b.p.z - e)) / (2 * e);
+      nT.set(-gx, 1, -gz).normalize().add(UP).normalize();
+      const vn = b.vel.dot(nT);
+      if (vn < 0) {
+        const impact = -vn, er = SET.bounce * 0.95 * (0.45 + 0.55 * broadFlat(b.p.x, b.p.z)) * smooth(1.5, 6, impact);
+        b.vel.addScaledVector(nT, impact * (1 + Math.min(er, 0.97)));
+        if (impact > 3) { b.sqV -= impact * 0.06; if (loud) { pokeImpact(tC.set(b.p.x, gy, b.p.z), nT, impact); if (er > 0.1) sfx.boing(clamp(impact / 18, 0.15, 1) * Math.min(1, er + 0.2)); } }
+        if (!moving) { b.vel.x *= Math.exp(-8 * h); b.vel.z *= Math.exp(-8 * h); }
+      }
+      b.groundT = 0;
+      if (b.jumpBuf > 0 || (b.jumpHeld && vn < -3)) bodyJump(b);
+    }
+  }
+  if (b.jumpBuf > 0 && b.groundT < 0.12) bodyJump(b);
+  if (cN && loud) holdPoke(0, cPt, 1.1 * (b.r / 0.5), cN.multiplyScalar(-cDepth * 0.85));
+  if (b.p.y < -6 || Math.hypot(b.p.x, b.p.z) > 500) { b.p.copy(b.spawn).add(V3(0, 2.5, 0)); b.vel.set(0, 0, 0); b.inM = null; }
+  b.sqV += (-(b.sq - 1) * 160 - b.sqV * 9) * dt; b.sq += b.sqV * dt;
+}
+
+/* ================= the two balloon buddies ================= */
+const THEMES = [{ accent: '#f2509e', aura: '#ff5fae', name: 'pink' }, { accent: '#3a8df5', aura: '#4fc3ff', name: 'blue' }];
+const auraMat = (col) => new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, uniforms: { uC: { value: new THREE.Color(col) }, uT: U_TIME, uI: { value: 1 } },
+  vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'uniform vec3 uC; uniform float uT; uniform float uI; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 2.0); float p = 0.7 + 0.3 * sin(uT * 5.0); gl_FragColor = vec4(uC * f * p * uI, 1.0); }',
+});
+function makeChar(theme) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshPhysicalMaterial({ color: '#fff4e8', roughness: 0.28, sheen: 0.6, sheenColor: new THREE.Color(theme.aura), clearcoat: 0.7, clearcoatRoughness: 0.18 });
+  const accent = new THREE.MeshStandardMaterial({ color: theme.accent, roughness: 0.35 });
+  const inner = new THREE.Group(); g.add(inner);
+  const body = new THREE.Mesh(superq(0.46, 0.5, 0.46, 0.85, 0.9, 30), bodyMat); body.castShadow = true; inner.add(body);
+  const white = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3 }), black = new THREE.MeshStandardMaterial({ color: '#15183a', roughness: 0.2 });
+  const cheekMat = new THREE.MeshStandardMaterial({ color: '#ff8cc0', roughness: 0.6 });
+  const eyes = [];
+  for (const sx of [-1, 1]) {
+    const eye = new THREE.Group(); eye.position.set(sx * 0.15, 0.14, -0.37);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), white); ball.scale.set(1, 1.15, 0.7);
+    const pup = new THREE.Mesh(new THREE.SphereGeometry(0.066, 12, 10), black); pup.position.set(0, -0.01, -0.07);
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), white); glint.position.set(sx * 0.02, 0.03, -0.125);
+    eye.add(ball, pup, glint); inner.add(eye); eyes.push(eye);
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), cheekMat); cheek.scale.set(1, 0.6, 0.35); cheek.position.set(sx * 0.27, -0.05, -0.36); inner.add(cheek);
+  }
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), black); mouth.scale.set(1.2, 0.25, 0.4); mouth.position.set(0, -0.08, -0.43); inner.add(mouth);
+  const knot = new THREE.Group(); knot.position.y = 0.5;
+  const tie = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.12, 12), accent); tie.position.y = 0.03;
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.03, 8, 16), accent); lip.rotation.x = Math.PI / 2; lip.position.y = 0.1;
+  knot.add(tie, lip); inner.add(knot);
+  const arms = [];
+  const armGeo = new THREE.CapsuleGeometry(0.075, 0.26, 4, 10); armGeo.translate(0, -0.17, 0);
+  for (const sx of [-1, 1]) { const piv = new THREE.Group(); piv.position.set(sx * 0.4, 0.02, 0); const a = new THREE.Mesh(armGeo, bodyMat); a.castShadow = true; piv.add(a); inner.add(piv); arms.push(piv); }
+  const feet = [];
+  for (const sx of [-1, 1]) { const f = new THREE.Mesh(superq(0.13, 0.08, 0.18, 0.7, 0.7, 14), accent); f.position.set(sx * 0.18, -0.47, -0.04); f.castShadow = true; g.add(f); feet.push(f); }
+  const ghost = new THREE.Mesh(body.geometry, new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.5, depthFunc: THREE.GreaterDepth, depthWrite: false, fog: false }));
+  ghost.renderOrder = 10; inner.add(ghost);
+  const aura = new THREE.Mesh(new THREE.SphereGeometry(0.95, 28, 20), auraMat(theme.aura)); aura.renderOrder = 11; g.add(aura);
+  g.userData = { inner, eyes, feet, arms, mouth, aura, ghost, hug: 0, blink: 2 + Math.random() * 2 };
+  g.visible = false; scene.add(g);
+  return g;
+}
+const CH = [makeChar(THEMES[0]), makeChar(THEMES[1])];
+function updateChar(C, p, vel, face, sq, groundT, dt, mouth, hugAmt) {
+  const U = C.userData;
+  C.position.copy(p); C.rotation.y = face;
+  const st = clamp(sq + clamp(vel.y * 0.012, -0.12, 0.2), 0.55, 1.4);
+  U.inner.scale.set(1 / Math.sqrt(st), st, 1 / Math.sqrt(st)); U.inner.position.y = (st - 1) * 0.5;
+  const hv = Math.hypot(vel.x, vel.z), on = groundT < 0.12;
+  U.walk = (U.walk || 0) + (on ? hv * dt * 2.2 : 0);
+  U.feet.forEach((f, i) => { const s = Math.sin(U.walk * 3 + i * Math.PI); f.position.z = -0.04 + (on ? s * 0.12 * Math.min(1, hv / 4) : 0.06); f.position.y = -0.47 + (on ? Math.max(0, s) * 0.06 : -0.04); });
+  U.blink -= dt; if (U.blink < -0.12) U.blink = 2 + Math.random() * 3;
+  U.eyes.forEach((e) => { e.scale.y = U.blink < 0 || hugAmt > 0.9 ? 0.15 : 1; });
+  U.mouth.scale.y = 0.25 + mouth * 0.9 + hugAmt * 0.3;
+  U.hug += (hugAmt - U.hug) * Math.min(1, dt * 8);
+  const flap = Math.sin(U.walk * 3) * 0.25 * (1 - U.hug), up = on ? 0 : 0.5;
+  U.arms.forEach((a, i) => { const sx = i ? 1 : -1; a.rotation.set(lerp(flap * sx, 1.5, U.hug), 0, lerp(sx * (0.35 + up), -sx * 0.12, U.hug)); a.position.set(sx * lerp(0.4, 0.43, U.hug), 0.02 + 0.07 * U.hug, -0.1 * U.hug); });
+  U.inner.rotation.x = -0.2 * U.hug + Math.sin(U_TIME.value * 3) * 0.04 * U.hug;
+  U.aura.material.uniforms.uI.value = 1 - U.hug * 0.55;
+  U.ghost.visible = U.hug < 0.3;   // the see-through silhouette is for finding yourself behind the inflatables, not behind your buddy
+}
+
+/* ================= electricity between the auras while you're apart ================= */
+const BOLT_N = 65;
+function ribbon(color, opacity, depthTest) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BOLT_N * 2 * 3), 3));
+  const idx = []; for (let i = 0; i < BOLT_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  geo.setIndex(idx);
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, depthTest, side: THREE.DoubleSide, fog: false, toneMapped: false }));
+  m.frustumCulled = false; m.renderOrder = 12; scene.add(m);
+  return m;
+}
+const boltGlow = ribbon('#b98cff', 0.35, false), boltCore = ribbon('#ffffff', 0.95, true), boltTint = ribbon('#7fd8ff', 0.7, true);
+const BP = Array.from({ length: BOLT_N }, () => V3());
+let boltT = 0;
+function makeBoltPath(a, b) {
+  const len = a.distanceTo(b);
+  BP[0].copy(a); BP[BOLT_N - 1].copy(b);
+  const dir = tA.subVectors(b, a).normalize(), side1 = tB.crossVectors(dir, UP); if (side1.lengthSq() < 1e-4) side1.set(1, 0, 0); side1.normalize();
+  const side2 = tC.crossVectors(dir, side1).normalize();
+  // midpoint displacement: big jags first, then smaller ones
+  for (let step = BOLT_N - 1, amp = Math.min(len * 0.12, 9); step > 1; step >>= 1, amp *= 0.55) {
+    for (let i = 0; i + step < BOLT_N; i += step) {
+      const m = i + (step >> 1), r1 = (Math.random() - 0.5) * 2 * amp, r2v = (Math.random() - 0.5) * 2 * amp;
+      BP[m].copy(BP[i]).lerp(BP[i + step], 0.5).addScaledVector(side1, r1).addScaledVector(side2, r2v);
+    }
+  }
+}
+function writeRibbon(m, width) {
+  const P = m.geometry.attributes.position.array;
+  for (let i = 0; i < BOLT_N; i++) {
+    const a = BP[Math.max(0, i - 1)], b = BP[Math.min(BOLT_N - 1, i + 1)];
+    tA.subVectors(b, a); tB.subVectors(camera.position, BP[i]); tC.crossVectors(tA, tB).normalize();
+    const w = width * (0.35 + 0.65 * Math.sin(Math.PI * i / (BOLT_N - 1))) * (0.7 + Math.random() * 0.5);
+    const k = i * 6;
+    P[k] = BP[i].x + tC.x * w; P[k + 1] = BP[i].y + tC.y * w; P[k + 2] = BP[i].z + tC.z * w;
+    P[k + 3] = BP[i].x - tC.x * w; P[k + 4] = BP[i].y - tC.y * w; P[k + 5] = BP[i].z - tC.z * w;
+  }
+  m.geometry.attributes.position.needsUpdate = true;
+}
+function updateBolt(dt, from, to, show) {
+  for (const m of [boltGlow, boltCore, boltTint]) m.visible = show;
+  if (!show) return;
+  boltT -= dt;
+  if (boltT <= 0) {
+    boltT = 0.06 + Math.random() * 0.05;
+    const d = tA.subVectors(to, from), len = d.length(); d.divideScalar(len || 1);
+    const a = from.clone().addScaledVector(d, 0.9), b = to.clone().addScaledVector(d, -0.9);
+    makeBoltPath(a, b);
+    const near = 1 - clamp(len / 90, 0, 1);
+    writeRibbon(boltGlow, 0.35 + near * 0.35); writeRibbon(boltTint, 0.09 + near * 0.06); writeRibbon(boltCore, 0.035 + near * 0.03);
+    boltGlow.material.opacity = 0.22 + near * 0.3;
+  }
+}
+
+/* ================= confetti and hearts ================= */
+function spriteTex(draw) { const c = document.createElement('canvas'); c.width = c.height = 64; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+const squareTex = spriteTex((x) => { x.fillStyle = '#fff'; x.fillRect(12, 18, 40, 28); });
+const heartTex = spriteTex((x) => { x.fillStyle = '#fff'; x.beginPath(); x.moveTo(32, 54); x.bezierCurveTo(4, 34, 6, 10, 22, 10); x.bezierCurveTo(29, 10, 32, 16, 32, 20); x.bezierCurveTo(32, 16, 35, 10, 42, 10); x.bezierCurveTo(58, 10, 60, 34, 32, 54); x.fill(); });
+function particles(n, tex, size, colored) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3).fill(-9999), 3));
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const c = colored ? new THREE.Color(PAL[i % PAL.length][0]) : new THREE.Color(i % 2 ? '#ff5fae' : '#ff2d6f'); col.set([c.r, c.g, c.b], i * 3); }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size, map: tex, vertexColors: true, transparent: true, depthWrite: false, alphaTest: 0.2, fog: false }));
+  pts.frustumCulled = false; scene.add(pts);
+  return { pts, n, v: new Float32Array(n * 3), life: new Float32Array(n), drag: colored ? 1.2 : 0.6, grav: colored ? 6 : -1.2 };
+}
+const CONF = particles(420, squareTex, 0.32, true), HEARTS = particles(40, heartTex, 0.7, false);
+function burst(S, at, speed, up) {
+  const P = S.pts.geometry.attributes.position.array;
+  for (let i = 0; i < S.n; i++) {
+    P[i * 3] = at.x; P[i * 3 + 1] = at.y; P[i * 3 + 2] = at.z;
+    const th = Math.random() * TAU, ph = Math.acos(1 - Math.random() * 2), s = speed * (0.4 + Math.random() * 0.6);
+    S.v[i * 3] = Math.sin(ph) * Math.cos(th) * s; S.v[i * 3 + 1] = Math.abs(Math.cos(ph)) * s * up + s * 0.3; S.v[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * s;
+    S.life[i] = 1.6 + Math.random() * 1.4;
+  }
+}
+function stepParticles(S, dt) {
+  const P = S.pts.geometry.attributes.position.array; let any = false;
+  for (let i = 0; i < S.n; i++) {
+    if (S.life[i] <= 0) continue;
+    S.life[i] -= dt; any = true;
+    if (S.life[i] <= 0) { P[i * 3 + 1] = -9999; continue; }
+    const k = Math.exp(-S.drag * dt);
+    S.v[i * 3] *= k; S.v[i * 3 + 2] *= k; S.v[i * 3 + 1] = S.v[i * 3 + 1] * k - S.grav * dt;
+    P[i * 3] += S.v[i * 3] * dt; P[i * 3 + 1] += S.v[i * 3 + 1] * dt; P[i * 3 + 2] += S.v[i * 3 + 2] * dt;
+  }
+  if (any) S.pts.geometry.attributes.position.needsUpdate = true;
+}
+
+/* ================= sound: boings, the electric buzz that gets louder as you get closer, voice ================= */
+const sfx = {
+  ctx: null, out: null, hum: null,
+  init() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.out = this.ctx.createGain(); this.out.gain.value = 0.7; this.out.connect(this.ctx.destination);
+      const len = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = this.ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 240; bp.Q.value = 6;
+      const hum = this.ctx.createOscillator(); hum.type = 'sawtooth'; hum.frequency.value = 60;
+      const hg = this.ctx.createGain(); hg.gain.value = 0.25;
+      const g = this.ctx.createGain(); g.gain.value = 0;
+      src.connect(bp); hum.connect(hg); hg.connect(bp); bp.connect(g); g.connect(this.out); src.start(); hum.start();
+      this.hum = { g, bp, osc: hum };
+    } catch (e) { this.ctx = null; }
+  },
+  tone(f0, f1, f2, gain, len, type = 'sine', wob = 0) {
+    const c = this.ctx; if (!c || c.state !== 'running') return;
+    const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len * 0.15); o.frequency.exponentialRampToValueAtTime(f2, t + len);
+    if (wob) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 24; lg.gain.value = wob; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t + len + 0.05); }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g).connect(this.out); o.start(t); o.stop(t + len + 0.05);
+  },
+  last: 0,
+  boing(s) { const now = performance.now(); if (now - this.last < 70) return; this.last = now; const f = 150 + 140 * s; this.tone(f * 0.55, f * 1.7, f * 0.75, 0.05 + 0.14 * s, 0.42, 'sine', f * 0.08); },
+  bloop(s) { this.tone(110, 80 + 60 * s, 60, 0.06 * s, 0.3); },
+  hug() { [523, 659, 784].forEach((f, i) => setTimeout(() => this.tone(f, f * 1.01, f, 0.09, 0.5, 'triangle'), i * 90)); },
+  pop() { this.tone(900, 120, 40, 0.3, 0.5, 'square'); this.tone(200, 60, 30, 0.35, 0.7); },
+  setHum(level, near) { if (!this.hum) return; const t = this.ctx.currentTime; this.hum.g.gain.setTargetAtTime(level, t, 0.08); this.hum.bp.frequency.setTargetAtTime(180 + near * 520, t, 0.1); this.hum.osc.frequency.setTargetAtTime(50 + near * 70, t, 0.1); },
+};
+let lastZap = 0;
+
+/* ================= game state ================= */
+const game = { mode: 'title', net: false, bot: false, auth: true, me: 0, lv: null, hug: false, ax: V3(1, 0, 0), ready: [false, false], boomT: 0, waitBuilt: false, built: false, pending: null };
+const ME = makeBody(0.5), OTHER = makeBody(0.5), PAIR = makeBody(0.78);
+const remote = { p: V3(), v: V3(), f: 0, m: 0, sq: 1, gt: 0, has: false, mv: V3(), jc: 0, jh: false, so: false, pair: null };
+let myMouth = 0, jumpCount = 0, prevJc = 0;
+const cam3 = { yaw: 0, pitch: 0.3, dist: 6.5, tgt: V3() };
+const INP = { joy: { x: 0, y: 0 }, jumpHeld: false, jumpEdge: false };
+const keys = {};
+function moveVec(out) {
+  let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + INP.joy.x;
+  let my = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - INP.joy.y;
+  const l = Math.hypot(mx, my); if (l > 1) { mx /= l; my /= l; }
+  return out.set(-Math.sin(cam3.yaw) * my + Math.cos(cam3.yaw) * mx, 0, -Math.cos(cam3.yaw) * my - Math.sin(cam3.yaw) * mx);
+}
+const bot = { t: 0, target: V3(), hopT: 1.5, readyT: -1 };
+function beginLevel(lv) {
+  game.lv = lv; game.hug = false; game.ready = [false, false]; game.mode = 'play'; game.built = false; game.waitBuilt = false;
+  const sp = lv.spawns;
+  ME.spawn.set(...sp[game.me]); ME.p.copy(ME.spawn).add(V3(0, 2, 0)); ME.vel.set(0, 0, 0); ME.inM = null;
+  OTHER.spawn.set(...sp[1 - game.me]); OTHER.p.copy(OTHER.spawn).add(V3(0, 2, 0)); OTHER.vel.set(0, 0, 0); OTHER.inM = null;
+  remote.has = false; remote.pair = null; prevJc = remote.jc;
+  bot.target.copy(OTHER.spawn);
+  cam3.yaw = Math.atan2(ME.p.x - OTHER.p.x, ME.p.z - OTHER.p.z); cam3.pitch = 0.3; cam3.tgt.copy(ME.p);
+  camera.position.copy(ME.p).add(V3(Math.sin(cam3.yaw) * 6, 2.5, Math.cos(cam3.yaw) * 6));
+  CH.forEach((c) => { c.visible = true; c.userData.hug = 0; });
+  showScreen(null); showLoading(null); $('hud').hidden = false; $('hudMic').hidden = !game.net; $('soloBtn').hidden = true; syncSolo();
+  toast(game.bot ? 'Follow the lightning to find your bot buddy' : 'Follow the lightning to find each other', 3800);
+}
+function startHug() {
+  game.hug = true; game.ready = [false, false];
+  PAIR.p.copy(ME.p).add(OTHER.p).multiplyScalar(0.5); PAIR.vel.copy(ME.vel).add(OTHER.vel).multiplyScalar(0.5); PAIR.vel.y = Math.max(PAIR.vel.y, 2);
+  PAIR.inM = null; PAIR.sq = 0.7; PAIR.sqV = 0; PAIR.groundT = 9; PAIR.spawn.copy(ME.spawn);
+  game.ax.subVectors(OTHER.p, ME.p).setY(0); if (game.ax.lengthSq() < 1e-4) game.ax.set(1, 0, 0); game.ax.normalize();
+  if (game.me === 1) game.ax.negate();   // always from pink (A) towards blue (B)
+  if (game.net && game.auth) netSend({ t: 'hug', c: a3(PAIR.p), v: a3(PAIR.vel), ax: [r2(game.ax.x), r2(game.ax.z)] });
+  hugFx();
+}
+function hugFx() {
+  burst(HEARTS, PAIR.p.clone().add(V3(0, 0.8, 0)), 3, 1.2); sfx.hug();
+  try { navigator.vibrate && navigator.vibrate([30, 40, 60]); } catch (e) {}
+  $('soloBtn').hidden = false; syncSolo();
+  toast('You found each other! Keep bouncing together. Both tap Solo adventure to burst into a new world.', 5200);
+}
+function syncSolo() {
+  const b = $('soloBtn'), mine = game.ready[game.me], theirs = game.ready[1 - game.me];
+  b.classList.toggle('on', mine);
+  b.textContent = mine ? (theirs ? 'Here we go!' : 'Waiting for your buddy…') : theirs ? 'Solo adventure (they\'re ready)' : 'Solo adventure';
+}
+function setReady(i, v) { if (game.ready[i] === v) return; game.ready[i] = v; syncSolo(); if (v && i !== game.me) toast('Your buddy wants a solo adventure', 2200); }
+function startBoom() {
+  if (game.mode !== 'play') return;
+  if (game.net && game.auth) netSend({ t: 'boom' });
+  game.mode = 'boom'; game.boomT = 0; game.hug = false;
+  burst(CONF, PAIR.p, 13, 1.4); sfx.pop();
+  const f = $('flash'); f.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => f.classList.remove('on')));
+  try { navigator.vibrate && navigator.vibrate(120); } catch (e) {}
+  // fling apart
+  ME.p.copy(PAIR.p).addScaledVector(game.ax, game.me ? 0.5 : -0.5); OTHER.p.copy(PAIR.p).addScaledVector(game.ax, game.me ? -0.5 : 0.5);
+  ME.vel.copy(game.ax).multiplyScalar(game.me ? 9 : -9).setY(11); OTHER.vel.copy(ME.vel).setY(0).negate().setY(11);
+  $('soloBtn').hidden = true;
+}
+function nextLevel() {
+  const lv = { seed: 1 + Math.floor(Math.random() * 999999) };
+  buildLevel(lv, (done) => {
+    game.lv = done;
+    if (game.net) { netSend({ t: 'world', lv: done }); game.waitBuilt = true; showLoading('Waiting for your buddy to inflate it…'); if (game.built) goLevel(); }
+    else beginLevel(done);
+  });
+}
+function goLevel() { game.waitBuilt = false; game.built = false; netSend({ t: 'go' }); beginLevel(game.lv); }
+
+/* ================= frame by frame ================= */
+const mv = V3(), mvB = V3();
+let netT = 0;
+function playFrame(dt) {
+  moveVec(mv);
+  const auth = game.auth;
+  if (!game.hug) {
+    ME.jumpHeld = INP.jumpHeld; if (INP.jumpEdge) ME.jumpBuf = 0.2;
+    stepBody(ME, mv, dt, true);
+    if (game.bot) stepBot(dt);
+    else if (remote.has) {
+      tA.copy(remote.p).addScaledVector(remote.v, Math.min(0.25, (performance.now() - remote.at) / 1000));
+      OTHER.p.lerp(tA, Math.min(1, dt * 12)); OTHER.vel.copy(remote.v); OTHER.face = remote.f; OTHER.sq = remote.sq; OTHER.groundT = remote.gt;
+    }
+    if (auth && (game.bot || remote.has) && ME.p.distanceTo(OTHER.p) < ME.r + OTHER.r + 0.2) startHug();
+    if (game.net && (netT -= dt) <= 0) { netT = 1 / 20; netSend({ t: 's', p: a3(ME.p), v: a3(ME.vel), f: r2(ME.face), m: r2(myMouth), sq: r2(ME.sq), gt: ME.groundT < 0.12 ? 0 : 1 }); }
+  } else {
+    if (auth) {
+      if (game.bot) mvB.set(0, 0, 0); else mvB.copy(remote.mv);
+      tA.copy(mv).add(mvB); if (tA.length() > 1) tA.normalize();
+      PAIR.jumpHeld = INP.jumpHeld || (!game.bot && remote.jh);
+      if (INP.jumpEdge || (!game.bot && remote.jc !== prevJc)) PAIR.jumpBuf = 0.2;
+      prevJc = remote.jc;
+      stepBody(PAIR, tA, dt, true);
+      const hv = Math.hypot(PAIR.vel.x, PAIR.vel.z); game.ax.applyAxisAngle(UP, hv * 0.22 * dt);
+      if (game.bot && game.ready[game.me] && !game.ready[1]) { bot.readyT -= dt; if (bot.readyT <= 0) setReady(1, true); } else bot.readyT = 0.8;
+      if (game.net && (netT -= dt) <= 0) { netT = 1 / 20; netSend({ t: 'pair', c: a3(PAIR.p), v: a3(PAIR.vel), ax: [r2(game.ax.x), r2(game.ax.z)], sq: r2(PAIR.sq), gt: PAIR.groundT < 0.12 ? 0 : 1, ra: game.ready[0] ? 1 : 0, rb: game.ready[1] ? 1 : 0, m: r2(myMouth) }); }
+      if (game.ready[0] && game.ready[1]) { startBoom(); return; }
+    } else {
+      if (INP.jumpEdge) jumpCount++;
+      if ((netT -= dt) <= 0) { netT = 1 / 20; netSend({ t: 'in', mv: [r2(mv.x), r2(mv.z)], jc: jumpCount, jh: INP.jumpHeld ? 1 : 0, so: game.ready[game.me] ? 1 : 0, m: r2(myMouth) }); }
+      const P = remote.pair;
+      if (P) { tA.copy(P.c).addScaledVector(P.v, Math.min(0.2, (performance.now() - P.at) / 1000)); PAIR.p.lerp(tA, Math.min(1, dt * 14)); PAIR.vel.copy(P.v); PAIR.sq = P.sq; PAIR.groundT = P.gt; game.ax.lerp(P.ax, Math.min(1, dt * 10)).normalize(); }
+    }
+    // pink sits on one side of the hug, blue on the other
+    ME.p.copy(PAIR.p).addScaledVector(game.ax, game.me ? 0.42 : -0.42); OTHER.p.copy(PAIR.p).addScaledVector(game.ax, game.me ? -0.42 : 0.42);
+    ME.vel.copy(PAIR.vel); OTHER.vel.copy(PAIR.vel); ME.sq = OTHER.sq = PAIR.sq; ME.groundT = OTHER.groundT = PAIR.groundT;
+    const fA = Math.atan2(-game.ax.x, -game.ax.z);
+    ME.face = game.me ? fA + Math.PI : fA; OTHER.face = game.me ? fA : fA + Math.PI;
+  }
+  INP.jumpEdge = false;
+}
+function stepBot(dt) {
+  bot.t -= dt;
+  if (bot.t <= 0) { bot.t = 3 + Math.random() * 4; const a = Math.random() * TAU, r = Math.random() * 7; bot.target.set(OTHER.spawn.x + Math.cos(a) * r, 0, OTHER.spawn.z + Math.sin(a) * r); }
+  const d = tB.subVectors(bot.target, OTHER.p).setY(0), l = d.length();
+  mvB.copy(l > 1 ? d.divideScalar(l).multiplyScalar(0.45) : d.set(0, 0, 0));
+  bot.hopT -= dt; if (bot.hopT <= 0) { OTHER.jumpBuf = 0.2; bot.hopT = 1.2 + Math.random() * 2.5; }
+  stepBody(OTHER, mvB, dt, false);
+  const hv = Math.hypot(OTHER.vel.x, OTHER.vel.z); if (hv > 0.4) OTHER.face = Math.atan2(-OTHER.vel.x, -OTHER.vel.z);
+}
+const camRay = new THREE.Raycaster(); camRay.firstHitOnly = true;
+const camOff = V3(), camWant = V3();
+function updateCam(dt, target) {
+  cam3.tgt.lerp(tA.copy(target).add(V3(0, 0.7, 0)), Math.min(1, dt * 8));
+  camOff.set(Math.sin(cam3.yaw) * Math.cos(cam3.pitch), Math.sin(cam3.pitch), Math.cos(cam3.yaw) * Math.cos(cam3.pitch));
+  let d = cam3.dist * (game.hug ? 1.2 : 1);
+  camRay.set(cam3.tgt, camOff); camRay.far = d;
+  const hit = solids.length ? camRay.intersectObjects(solids, false)[0] : null;
+  if (hit) d = Math.max(1.4, hit.distance - 0.35);
+  camWant.copy(cam3.tgt).addScaledVector(camOff, d);
+  const fl = Math.max(0, heightAt(camWant.x, camWant.z)) + 0.45; if (camWant.y < fl) camWant.y = fl;
+  camera.position.lerp(camWant, Math.min(1, dt * 12)); camera.lookAt(cam3.tgt);
+}
+let menuAng = 0;
+function menuFrame(dt) {
+  menuAng += dt * 0.05;
+  const r = worldR * 1.05;
+  camera.position.lerp(tA.set(Math.cos(menuAng) * r, worldR * 0.55, Math.sin(menuAng) * r), Math.min(1, dt * 2));
+  camera.lookAt(0, 6, 0);
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  U_TIME.value += dt;
+  runTasks(game.mode === 'play' ? 8 : 16);
+  updateInflation(dt);
+  stepPokes(dt);
+  voiceFrame(dt);
+  let focus = null;
+  if (game.mode === 'play' && !building) {
+    playFrame(dt);
+    if (game.mode === 'play') {
+      const mineMouth = myMouth, theirMouth = game.bot ? 0 : remote.m;
+      updateChar(CH[game.me], ME.p, ME.vel, ME.face = (game.hug ? ME.face : faceFrom(ME, dt)), ME.sq, ME.groundT, dt, mineMouth, game.hug ? 1 : 0);
+      updateChar(CH[1 - game.me], OTHER.p, OTHER.vel, OTHER.face, OTHER.sq, OTHER.groundT, dt, theirMouth, game.hug ? 1 : 0);
+      updateCam(dt, game.hug ? PAIR.p : ME.p);
+      focus = game.hug ? PAIR.p : ME.p;
+    }
+  }
+  if (game.mode === 'boom') {
+    game.boomT += dt;
+    for (const [B, i] of [[ME, game.me], [OTHER, 1 - game.me]]) { B.vel.y -= 14 * dt; B.p.addScaledVector(B.vel, dt); updateChar(CH[i], B.p, B.vel, B.face += dt * 9, 1, 9, dt, 0.5, 0); }
+    updateCam(dt, PAIR.p);
+    if (game.boomT > 1.4) {
+      game.mode = 'between';
+      CH.forEach((c) => { c.visible = false; });
+      if (game.auth) nextLevel(); else showLoading('Inflating a new world…');
+    }
+  }
+  if (game.mode !== 'play' && game.mode !== 'boom' && world) menuFrame(dt);
+  // electricity while you're apart
+  const apart = game.mode === 'play' && !game.hug && (game.bot || remote.has);
+  updateBolt(dt, ME.p, OTHER.p, apart);
+  if (apart) {
+    const dist = ME.p.distanceTo(OTHER.p), near = 1 - clamp(dist / 90, 0, 1);
+    sfx.setHum(0.015 + near * near * 0.11, near);
+    if (dist < 18 && now - lastZap > 200 + Math.random() * 900) { lastZap = now; sfx.tone(2200, 600, 300, 0.035 * near, 0.06, 'square'); }
+  } else sfx.setHum(0, 0);
+  stepParticles(CONF, dt); stepParticles(HEARTS, dt);
+  const fc = focus || camera.position;
+  sun.position.copy(fc).addScaledVector(sunDir, 140); sun.target.position.copy(fc); sun.target.updateMatrixWorld();
+  sky.position.copy(camera.position);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+function faceFrom(B, dt) {
+  const hv = Math.hypot(B.vel.x, B.vel.z);
+  if (hv > 0.4) { const want = Math.atan2(-B.vel.x, -B.vel.z); let d = want - B.face; d = Math.atan2(Math.sin(d), Math.cos(d)); B.face += d * Math.min(1, dt * 10); }
+  return B.face;
+}
+
+/* ================= screens, toasts, loading ================= */
+let toastT = 0;
+function toast(s, ms) { const t = $('toast'); t.textContent = s; t.classList.remove('hide'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hide'), ms || 2600); }
+function showScreen(id) { for (const s of ['sTitle', 'sLobby']) $(s).hidden = s !== id; }
+function showLoading(text) { $('loading').hidden = !text; if (text) $('loadText').textContent = text; }
+function toMenu() {
+  game.mode = 'title'; game.hug = false; $('hud').hidden = true; CH.forEach((c) => { c.visible = false; }); showScreen('sTitle'); showLoading(null);
+  if (!world && !building) buildLevel({ seed: 1 + Math.floor(Math.random() * 999999) }, (lv) => { game.lv = lv; });
+}
+
+/* ================= multiplayer: PeerJS with 4-digit codes (host = pink, joiner = blue) ================= */
+const NET = { on: false, host: false, code: '', id: '', peer: null, conn: null, test: /[?&]nettest/.test(location.search) };
+const NET_PREFIX = 'staticcling-sc-'; let NET_ICE = null;
+function Em() { this._h = {}; } Em.prototype.on = function (k, f) { (this._h[k] = this._h[k] || []).push(f); return this; }; Em.prototype.emit = function (k, ...a) { (this._h[k] || []).forEach((f) => f(...a)); };
+function BCConn(o, r) { Em.call(this); this.o = o; this.peer = r; this.open = false; } BCConn.prototype = Object.create(Em.prototype);
+BCConn.prototype.ready = function () { if (this.open) return; this.open = true; setTimeout(() => this.emit('open'), 0); };
+BCConn.prototype.send = function (d) { this.o.bc.postMessage({ to: this.peer, from: this.o.id, k: 'data', d }); };
+BCConn.prototype.close = function () { this.o.bc.postMessage({ to: this.peer, from: this.o.id, k: 'close' }); };
+function BCPeer(id) { Em.call(this); this.id = id || 'g' + Math.random().toString(36).slice(2, 9); this.conns = {}; this.bc = new BroadcastChannel('staticcling-net');
+  this.bc.onmessage = (e) => { const m = e.data; if (m.to !== this.id) return; const c = this.conns[m.from];
+    if (m.k === 'conn') { const n = new BCConn(this, m.from); this.conns[m.from] = n; this.emit('connection', n); n.ready(); this.bc.postMessage({ to: m.from, from: this.id, k: 'ok' }); }
+    else if (m.k === 'ok') c && c.ready(); else if (m.k === 'data') c && c.emit('data', m.d); else if (m.k === 'close') c && c.emit('close'); };
+  setTimeout(() => this.emit('open', this.id), 10); }
+BCPeer.prototype = Object.create(Em.prototype);
+BCPeer.prototype.connect = function (id) { const c = new BCConn(this, id); this.conns[id] = c; this.bc.postMessage({ to: id, from: this.id, k: 'conn' }); setTimeout(() => { if (!c.open) this.emit('error', { type: 'peer-unavailable' }); }, 1500); return c; };
+BCPeer.prototype.call = function () { return null; }; BCPeer.prototype.destroy = function () { try { this.bc.close(); } catch (e) {} };
+async function makeIce() {
+  const stun = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+  try { const user = Math.floor(Date.now() / 1000 + 24 * 3600) + ':staticcling';
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('openrelayprojectsecret'), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(user))), H = 'staticauth.openrelay.metered.ca';
+    return stun.concat([{ urls: ['turn:' + H + ':80', 'turn:' + H + ':80?transport=tcp', 'turn:' + H + ':443', 'turns:' + H + ':443?transport=tcp'], username: user, credential: btoa(String.fromCharCode(...sig)) }]);
+  } catch (e) { return stun; } }
+async function loadPeer() { if (NET.test) return; if (!NET_ICE) NET_ICE = await makeIce(); if (window.Peer) return;
+  await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('load')); document.head.append(sc); }); }
+function makePeer(id) { if (NET.test) return new BCPeer(id); const o = { debug: 1, config: { iceServers: NET_ICE } }; return id ? new window.Peer(id, o) : new window.Peer(o); }
+function lob(t) { $('lobStatus').textContent = t || ''; $('lobStatus2').textContent = t || ''; }
+function errText(e) { return e.type === 'peer-unavailable' ? 'No game with that code. Check it and try again.' : (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') ? "Can't reach the matchmaker. Check the internet and try again." : 'Something went wrong (' + e.type + '). Try again.'; }
+function netReset() { voiceStop(); try { NET.conn && NET.conn.close(); } catch (e) {} try { NET.peer && NET.peer.destroy(); } catch (e) {} Object.assign(NET, { on: false, host: false, code: '', id: '', peer: null, conn: null }); game.net = false; }
+async function netHost() {
+  netReset(); lob('Starting…');
+  try { await loadPeer(); } catch (e) { return lob("Couldn't load the multiplayer part. Check the internet and try again."); }
+  const go = () => { const code = String(1000 + Math.floor(Math.random() * 9000)), peer = makePeer(NET_PREFIX + code); NET.peer = peer;
+    peer.on('open', (id) => { Object.assign(NET, { on: true, host: true, code, id }); $('lobCode').textContent = code; $('lobTitle').textContent = 'Your game'; $('lobNote').hidden = false; $('startBtn').hidden = false; $('startBtn').disabled = true; showScreen('sLobby'); lob('Waiting for your buddy to join…'); voiceInit(); });
+    peer.on('connection', (c) => { if (NET.conn) { c.on('open', () => { c.send({ t: 'full' }); setTimeout(() => c.close(), 400); }); return; } attach(c); });
+    peer.on('call', voiceAnswer);
+    peer.on('error', (e) => { if (e.type === 'unavailable-id') { try { peer.destroy(); } catch (_) {} go(); return; } lob(errText(e)); }); };
+  go();
+}
+async function netJoin(code) {
+  code = String(code || '').trim(); if (!/^\d{4}$/.test(code)) return lob('Type the 4-digit code from the host.');
+  netReset(); NET.code = code; lob('Connecting to ' + code + '…');
+  try { await loadPeer(); } catch (e) { return lob("Couldn't load the multiplayer part. Check the internet and try again."); }
+  const peer = makePeer(); NET.peer = peer;
+  peer.on('open', (id) => { NET.id = id; attach(peer.connect(NET_PREFIX + code, { reliable: true })); });
+  peer.on('call', voiceAnswer);
+  peer.on('error', (e) => { if (!NET.on) lob(errText(e)); });
+  setTimeout(() => { if (!NET.on && NET.code === code) lob("Couldn't connect. Check the code and try again."); }, 20000);
+}
+function attach(c) {
+  c.on('open', () => { NET.conn = c;
+    if (NET.host) { lob('Your buddy is here. Tap Start when you are both ready.'); $('startBtn').disabled = false; sfx.hug(); voiceCall(c.peer); }
+    else { Object.assign(NET, { on: true, host: false }); $('lobCode').textContent = NET.code; $('lobTitle').textContent = 'Joined'; $('lobNote').hidden = true; $('startBtn').hidden = true; showScreen('sLobby'); lob('Connected. You are the blue balloon. The host starts the game.'); voiceInit(); } });
+  c.on('data', netData); c.on('close', netDrop); c.on('error', netDrop);
+}
+function netSend(m) { try { NET.conn && NET.conn.open !== false && NET.conn.send(m); } catch (e) {} }
+function netDrop() {
+  if (!NET.on) return; NET.conn = null;
+  const playing = game.mode !== 'title';
+  if (NET.host) {
+    if (playing) { game.net = false; netReset(); toMenu(); lob('Your buddy left the game.'); }
+    else { lob('Your buddy left. Waiting for someone new…'); $('startBtn').disabled = true; }
+  } else { netReset(); toMenu(); lob(playing ? 'The host left the game.' : 'The host closed the game.'); }
+}
+// the host sends a world, the joiner inflates it and says so, then you both drop in
+function hostStart() {
+  if (!NET.host || !NET.conn) return;
+  Object.assign(game, { net: true, bot: false, auth: true, me: 0 });
+  showScreen(null);
+  const send = (lv) => { game.lv = lv; netSend({ t: 'world', lv }); game.waitBuilt = true; showLoading('Waiting for your buddy to inflate it…'); if (game.built) goLevel(); };
+  if (game.lv && game.lv.spawns && !building) send(game.lv); else buildLevel({ seed: 1 + Math.floor(Math.random() * 999999) }, send);
+}
+function netData(m) {
+  const now = performance.now();
+  switch (m.t) {
+    case 'world':
+      if (NET.host) break;
+      Object.assign(game, { net: true, bot: false, auth: false, me: 1, mode: 'between', hug: false });
+      showScreen(null); $('hud').hidden = true; CH.forEach((c) => { c.visible = false; });
+      buildLevel(m.lv, (lv) => { game.lv = lv; netSend({ t: 'built' }); showLoading('Almost there…'); });
+      break;
+    case 'built': if (NET.host) { if (game.waitBuilt) goLevel(); else game.built = true; } break;
+    case 'go': if (!NET.host && game.lv) beginLevel(game.lv); break;
+    case 's':
+      if (!remote.has) OTHER.p.set(...m.p);
+      remote.p.set(...m.p); remote.v.set(...m.v); remote.f = m.f; remote.m = m.m; remote.sq = m.sq; remote.gt = m.gt ? 9 : 0; remote.at = now; remote.has = true;
+      break;
+    case 'hug':
+      if (NET.host || game.mode !== 'play') break;
+      PAIR.p.set(...m.c); PAIR.vel.set(...m.v); game.ax.set(m.ax[0], 0, m.ax[1]).normalize();
+      remote.pair = { c: PAIR.p.clone(), v: PAIR.vel.clone(), ax: game.ax.clone(), sq: 0.7, gt: 9, at: now };
+      game.hug = true; game.ready = [false, false]; hugFx();
+      break;
+    case 'pair':
+      if (NET.host) break;
+      if (!game.hug && game.mode === 'play') { game.hug = true; game.ready = [false, false]; PAIR.p.set(...m.c); game.ax.set(m.ax[0], 0, m.ax[1]).normalize(); hugFx(); }
+      remote.pair = remote.pair || { c: V3(), v: V3(), ax: V3(), sq: 1, gt: 0, at: 0 };
+      remote.pair.c.set(...m.c); remote.pair.v.set(...m.v); remote.pair.ax.set(m.ax[0], 0, m.ax[1]).normalize(); remote.pair.sq = m.sq; remote.pair.gt = m.gt ? 9 : 0; remote.pair.at = now;
+      remote.m = m.m; setReady(0, !!m.ra);
+      break;
+    case 'in':
+      if (!NET.host) break;
+      remote.mv.set(m.mv[0], 0, m.mv[1]); remote.jc = m.jc; remote.jh = !!m.jh; remote.m = m.m;
+      if (game.hug) setReady(1, !!m.so);
+      break;
+    case 'boom': if (!NET.host) startBoom(); break;
+    case 'full': lob('That game already has two balloons.'); netReset(); break;
+    case 'bye': netDrop(); break;
+  }
+}
+
+/* ================= voice: hear each other, and your mouths move when you talk ================= */
+const VOICE = { local: null, calls: {}, nodes: {}, an: null, buf: null, muted: false, ready: null };
+function silentStream() { sfx.init(); return sfx.ctx ? sfx.ctx.createMediaStreamDestination().stream : new MediaStream(); }
+function voiceInit() {
+  if (VOICE.ready) return VOICE.ready; sfx.init();
+  VOICE.ready = (async () => { if (NET.test || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    try { VOICE.local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (e) { VOICE.local = null; lob('No microphone: you can still hear your buddy.'); return; }
+    if (sfx.ctx) { const an = sfx.ctx.createAnalyser(); an.fftSize = 512; sfx.ctx.createMediaStreamSource(VOICE.local).connect(an); VOICE.an = an; VOICE.buf = new Float32Array(an.fftSize); }
+    syncMic(); })();
+  return VOICE.ready;
+}
+function voiceCall(id) { if (!NET.peer || NET.test) return; (VOICE.ready || voiceInit()).then(() => { try { const call = NET.peer.call(id, VOICE.local || silentStream()); if (call) voiceAttach(call); } catch (e) {} }); }
+function voiceAnswer(call) { (VOICE.ready || voiceInit()).then(() => { try { call.answer(VOICE.local || silentStream()); voiceAttach(call); } catch (e) {} }); }
+function voiceAttach(call) { VOICE.calls[call.peer] = call; call.on('stream', (st) => voicePlay(call.peer, st)); call.on('close', () => voiceUnplug(call.peer)); call.on('error', () => voiceUnplug(call.peer)); }
+function voicePlay(id, st) {
+  sfx.init(); const ctx = sfx.ctx; if (!ctx) return; voiceUnplug(id, true);
+  const el = new Audio(); el.muted = true; el.autoplay = true; el.playsInline = true; el.srcObject = st; el.play && el.play().catch(() => {});
+  const src = ctx.createMediaStreamSource(st), g = ctx.createGain(); g.gain.value = 1.6; src.connect(g); g.connect(ctx.destination); VOICE.nodes[id] = { src, g, el };
+}
+function voiceUnplug(id, keepCall) { const n = VOICE.nodes[id]; if (n) { try { n.src.disconnect(); n.g.disconnect(); n.el.srcObject = null; } catch (e) {} delete VOICE.nodes[id]; }
+  if (!keepCall) { const c = VOICE.calls[id]; if (c) { delete VOICE.calls[id]; try { c.close(); } catch (e) {} } } }
+function voiceStop() { for (const id of Object.keys(VOICE.nodes).concat(Object.keys(VOICE.calls))) voiceUnplug(id); if (VOICE.local) VOICE.local.getTracks().forEach((t) => t.stop()); Object.assign(VOICE, { local: null, an: null, ready: null }); }
+function syncMic() { if (VOICE.local) VOICE.local.getAudioTracks().forEach((t) => { t.enabled = !VOICE.muted; }); const t = VOICE.muted ? 'Mic off' : 'Mic on'; $('micBtn').textContent = t; $('hudMic').textContent = t; $('hudMic').classList.toggle('off', VOICE.muted); }
+function voiceFrame(dt) {
+  let lv = 0;
+  if (VOICE.an && !VOICE.muted) { VOICE.an.getFloatTimeDomainData(VOICE.buf); let s = 0; for (const v of VOICE.buf) s += v * v; lv = clamp((Math.sqrt(s / VOICE.buf.length) - 0.012) * 9, 0, 1); }
+  myMouth = lerp(myMouth, lv, Math.min(1, dt * 18));
+}
+
+/* ================= thumbs: joystick on the left, drag to look on the right, Bounce button ================= */
+let joyId = null, lookId = null, joyO = { x: 0, y: 0 }, lookL = { x: 0, y: 0 };
+const joyEl = $('joy'), knob = $('knob'), jumpBtn = $('jumpBtn');
+const playing = () => game.mode === 'play';
+canvas.addEventListener('pointerdown', (e) => {
+  sfx.init();
+  if (!playing()) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  if (e.pointerType !== 'mouse' && e.clientX < innerWidth * 0.45 && joyId === null) {
+    joyId = e.pointerId; joyO = { x: e.clientX, y: e.clientY };
+    joyEl.style.left = (e.clientX - 62) + 'px'; joyEl.style.top = (e.clientY - 62) + 'px'; joyEl.style.bottom = 'auto';
+  } else if (lookId === null) { lookId = e.pointerId; lookL = { x: e.clientX, y: e.clientY }; }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerId === joyId) {
+    let dx = (e.clientX - joyO.x) / 52, dy = (e.clientY - joyO.y) / 52;
+    const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
+    INP.joy.x = dx; INP.joy.y = dy;
+    knob.style.transform = `translate(${dx * 36}px, ${dy * 36}px)`;
+  } else if (e.pointerId === lookId) {
+    const k = e.pointerType === 'mouse' ? 0.006 : 0.008;
+    cam3.yaw -= (e.clientX - lookL.x) * k;
+    cam3.pitch = clamp(cam3.pitch + (e.clientY - lookL.y) * k, -0.25, 1.25);
+    lookL = { x: e.clientX, y: e.clientY };
+  }
+});
+const endPointer = (e) => {
+  if (e.pointerId === joyId) { joyId = null; INP.joy.x = INP.joy.y = 0; knob.style.transform = ''; joyEl.style.left = ''; joyEl.style.top = ''; joyEl.style.bottom = ''; }
+  if (e.pointerId === lookId) lookId = null;
+};
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', (e) => { if (playing()) { cam3.dist = clamp(cam3.dist * (e.deltaY > 0 ? 1.1 : 0.9), 3, 16); e.preventDefault(); } }, { passive: false });
+const jumpDown = (e) => { e.preventDefault(); sfx.init(); INP.jumpHeld = true; INP.jumpEdge = true; jumpBtn.classList.add('down'); };
+const jumpUp = () => { INP.jumpHeld = false; jumpBtn.classList.remove('down'); };
+jumpBtn.addEventListener('pointerdown', jumpDown);
+jumpBtn.addEventListener('pointerup', jumpUp);
+jumpBtn.addEventListener('pointercancel', jumpUp);
+jumpBtn.addEventListener('pointerleave', jumpUp);
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  keys[e.code] = true;
+  if (playing() && e.code === 'Space') { e.preventDefault(); if (!INP.jumpHeld) INP.jumpEdge = true; INP.jumpHeld = true; }
+  if (playing() && e.code === 'Enter' && game.hug) $('soloBtn').click();
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; if (e.code === 'Space') INP.jumpHeld = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; INP.jumpHeld = false; });
+
+/* ================= buttons ================= */
+function startPractice() {
+  netReset(); Object.assign(game, { net: false, bot: true, auth: true, me: 0 });
+  showScreen(null);
+  if (game.lv && game.lv.spawns && !building) beginLevel(game.lv);
+  else buildLevel({ seed: 1 + Math.floor(Math.random() * 999999) }, beginLevel);
+}
+$('hostBtn').addEventListener('click', () => { sfx.init(); netHost(); });
+$('joinBtn').addEventListener('click', () => { sfx.init(); netJoin($('codeIn').value); });
+$('codeIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { sfx.init(); netJoin($('codeIn').value); } });
+$('practiceBtn').addEventListener('click', () => { sfx.init(); startPractice(); });
+$('startBtn').addEventListener('click', () => { sfx.init(); hostStart(); });
+$('leaveBtn').addEventListener('click', () => { netSend({ t: 'bye' }); netReset(); toMenu(); lob(''); });
+$('micBtn').addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMic(); });
+$('hudMic').addEventListener('click', () => { VOICE.muted = !VOICE.muted; syncMic(); });
+$('hudExit').addEventListener('click', () => { if (game.net) { netSend({ t: 'bye' }); netReset(); } toMenu(); lob(''); });
+$('soloBtn').addEventListener('click', () => {
+  if (!game.hug || game.mode !== 'play') return;
+  sfx.init(); setReady(game.me, !game.ready[game.me]);
+  if (game.auth && game.bot && game.ready[0]) bot.readyT = 0.8;
+});
+
+
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+window.__sc = { game, ME, OTHER, PAIR, remote, NET, get building() { return building; }, get tasks() { return tasks.length; }, startPractice, hostStart, setReady, solids };
+toMenu();
+if (/[?&]practice/.test(location.search)) { const s = +((location.search.match(/seed=(\d+)/) || [])[1] || 7); buildLevel({ seed: s }, (lv) => { game.lv = lv; startPractice(); }); }
+requestAnimationFrame(frame);
+</script>
+<script src="../updated.js"></script>
+</body></html>
