@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nolli engine — a co-evolved figure-ground map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --board:#d4d1c6; --panel:#e2dfd6; --line:#b6b3a8; --text:#292c28; --muted:#5e625b;
+  --track:#b2afa4; --thumb:#292c28; --btn:#292c28; --btnText:#ece9e0;
+  --carver:#a06f1c; --mason:#7a2e27;
+  --ink:#2a2724; --paper:#efe7d3;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --board:#1d2022; --panel:#272b2e; --line:#3d4245; --text:#dad7ce; --muted:#9a9e96;
+    --track:#4b5054; --thumb:#dad7ce; --btn:#dad7ce; --btnText:#1d2022;
+    --carver:#d7a24a; --mason:#c9665c;
+  }
+}
+:root[data-theme="dark"]{
+  --board:#1d2022; --panel:#272b2e; --line:#3d4245; --text:#dad7ce; --muted:#9a9e96;
+  --track:#4b5054; --thumb:#dad7ce; --btn:#dad7ce; --btnText:#1d2022;
+  --carver:#d7a24a; --mason:#c9665c;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0; background:var(--board); color:var(--text);
+  font-family:"Spectral", Georgia, "Times New Roman", serif;
+  font-size:16px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:14px 14px 40px}
+header{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px}
+h1{font-size:1.35rem; font-weight:600; margin:0; letter-spacing:-0.01em}
+header p{margin:0; color:var(--muted); font-size:0.95rem; max-width:52ch}
+.layout{display:grid; grid-template-columns:1fr; gap:16px}
+@media (min-width:860px){
+  .layout{grid-template-columns:minmax(0,1fr) 330px; align-items:start}
+  .side{position:sticky; top:14px; max-height:calc(100dvh - 28px); overflow-y:auto; padding-right:2px}
+}
+.plate{background:var(--ink); padding:6px; border:1px solid var(--line)}
+canvas#map{display:block; width:100%; height:auto; aspect-ratio:1/1; image-rendering:pixelated; image-rendering:crisp-edges; background:var(--ink); touch-action:none; cursor:crosshair}
+.toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px}
+button{
+  font:inherit; font-size:0.95rem; font-weight:500; padding:7px 14px; border:1px solid var(--btn);
+  background:var(--btn); color:var(--btnText); cursor:pointer; border-radius:2px;
+}
+button.quiet{background:transparent; color:var(--text); border-color:var(--line)}
+.tools{display:inline-flex} .tools button{border-radius:0} .tools button:first-child{border-radius:2px 0 0 2px} .tools button:last-child{border-radius:0 2px 2px 0}
+.tools button.on{background:var(--text); color:var(--paper); border-color:var(--text)}
+button.crowd{background:transparent; color:#b0507a; border-color:#b0507a}
+button.crowd.on{background:#b0507a; color:#fff}
+button:focus-visible,input:focus-visible{outline:2px solid var(--carver); outline-offset:2px}
+.stats{margin-left:auto; color:var(--muted); font-size:0.92rem; font-variant-numeric:tabular-nums; text-align:right}
+.stats b{color:var(--text); font-weight:500}
+.hint{color:var(--muted); font-size:0.9rem; margin:8px 0 0}
+.side{display:flex; flex-direction:column; gap:12px}
+details.group{border:1px solid var(--line); background:var(--panel); padding:0 12px; margin:0; border-radius:2px}
+details.group[open]{padding-bottom:8px}
+summary{padding:9px 0; font-weight:600; font-size:0.98rem; cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:''; width:7px; height:7px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg); transition:transform .15s; flex:none}
+details[open]>summary::before{transform:rotate(45deg)}
+summary.carver{color:var(--carver)} summary.mason{color:var(--mason)}
+.quick{display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:0.9rem}
+.quick label{display:flex; align-items:center; gap:6px; flex:1 1 180px; min-width:160px}
+.quick label.chk{flex:0 0 auto}
+.quick output{font-variant-numeric:tabular-nums; color:var(--muted); min-width:2.6em; text-align:right}
+.quick input[type=range]{flex:1; min-width:80px; accent-color:var(--thumb); height:22px; margin:0}
+.row{display:grid; grid-template-columns:1fr 3.2em; align-items:center; column-gap:8px; padding:5px 0; border-top:1px dotted var(--line)}
+.row:first-of-type{border-top:0}
+.row label{font-size:0.93rem; grid-column:1}
+.row output{font-size:0.93rem; font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
+.row input[type=range]{grid-column:1 / span 2; width:100%; margin:4px 0 0; accent-color:var(--thumb); height:22px}
+.row small{grid-column:1 / span 2; color:var(--muted); font-size:0.82rem; line-height:1.35}
+.toggles{display:flex; gap:14px; flex-wrap:wrap; font-size:0.93rem}
+.classes{display:flex; gap:6px 10px; flex-wrap:wrap; margin-top:8px; font-size:0.9rem}
+.classes label{display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:999px; cursor:pointer}
+.classes label:has(input:checked){border-color:currentColor}
+.classes input{margin:0}
+.toggles label{display:flex; align-items:center; gap:6px}
+input[type=checkbox]{accent-color:var(--thumb); width:16px; height:16px}
+.genes{font-size:0.86rem; color:var(--muted); font-variant-numeric:tabular-nums; line-height:1.45}
+.genes b{font-weight:500}
+.genes .c{color:var(--carver)} .genes .m{color:var(--mason)}
+.genes+.genes{margin-top:2px}
+.legend{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:3px 10px; margin-top:10px; font-size:0.84rem; color:var(--muted)}
+.legend .sep{grid-column:1/-1; height:4px}
+.legend span{display:flex; align-items:center; gap:6px}
+.legend i{display:inline-block; width:12px; height:12px; border:1px solid rgba(0,0,0,0.25); flex:none}
+.evo{font-size:0.86rem; color:var(--muted); line-height:1.45; margin-top:6px; font-variant-numeric:tabular-nums}
+.evo b{font-weight:500; color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Nolli engine</h1>
+  <p>Carvers cut avenues, streets and lanes; masons wall them back in. Linkers tunnel between open spaces, wanderers thread hallways through the deepest blocks, fencers wall roads off from squares, and a planner drops piazze, halls, courtyards and porticoes. Every agent has a genome; the ones whose work survives the others get to breed. What settles out is a figure-ground map.</p>
+</header>
+
+<div class="layout">
+  <div>
+    <div class="legend" id="legend" hidden style="margin:0 0 10px"></div>
+    <div class="plate"><canvas id="map" width="640" height="640" aria-label="Figure-ground map being generated"></canvas></div>
+    <div class="quick">
+      <label>Resolution <output id="out_grid">320</output><input type="range" id="in_grid" min="80" max="480" step="8" value="320"></label>
+      <label>Speed <output id="out_speed">30</output><input type="range" id="in_speed" min="1" max="60" step="1" value="30"></label>
+      <label class="chk"><input type="checkbox" id="diag"> Colour view</label>
+    </div>
+    <div class="toolbar">
+      <button id="playBtn">Pause</button>
+      <button id="stepBtn" class="quiet">Step</button>
+      <button id="resetBtn" class="quiet">Reset</button>
+      <button id="fillBtn" class="quiet">All solid</button>
+      <button id="crowdBtn" class="crowd">Crowds only</button>
+      <span class="tools"><button id="toolCarve" class="quiet on">Carve</button><button id="toolFill" class="quiet">Fill</button><button id="toolPan" class="quiet">Pan</button></span>
+      <div class="stats"><b id="sOpen">0%</b> open · <b id="sGen">0</b> generations · <b id="sSq">0</b> big spaces · <b id="sPass">0</b> passages · <b id="sProg">0</b> programs</div>
+    </div>
+    <div class="classes" id="classes">
+      <label style="color:var(--carver)"><input type="checkbox" data-on="carver" checked> Carvers</label>
+      <label style="color:var(--mason)"><input type="checkbox" data-on="mason" checked> Masons</label>
+      <label style="color:#2a8a90"><input type="checkbox" data-on="linker" checked> Linkers</label>
+      <label style="color:#7a52a8"><input type="checkbox" data-on="wander" checked> Wanderers</label>
+      <label style="color:#4f7fa8"><input type="checkbox" data-on="fencer" checked> Fencers</label>
+      <label style="color:#7c8c2e"><input type="checkbox" data-on="vendor" checked> Vendors</label>
+      <label><input type="checkbox" data-on="program" checked> Planner</label>
+      <label style="color:#b0507a"><input type="checkbox" data-on="crowd" checked> Crowds</label>
+    </div>
+    <p class="hint">Agents: <span style="color:var(--carver)">carvers</span>, <span style="color:var(--mason)">masons</span>, <span style="color:#2a8a90">linkers</span> cutting tunnels between big open spaces, <span style="color:#7a52a8">wanderers</span> threading hallways through the largest blocks, <span style="color:#4f7fa8">fencers</span> lining roads and crowd routes with walls, colonnades and hatched screens, <span style="color:#7c8c2e">vendors</span> setting stalls beside the busiest paths, and <span style="color:#b0507a">crowds</span> that gather in the big open spaces and set off for another one, wearing the routes between them wider; builders keep out of their way. Each class can be switched on or off above; <em>Crowds only</em> freezes the builders. The largest open spaces are protected from masons, and if fewer than the set number remain the carvers open a new one. Open ground always stays connected. Draw on the map with the Carve or Fill tool (Shift also fills); pinch or scroll to zoom, Pan to drag the view, double-tap to reset.</p>
+    <p class="genes" id="genes"></p>
+    <p class="evo" id="evo"></p>
+  </div>
+
+  <div class="side" id="side">
+    <details class="group"><summary>Ground</summary>
+      <div id="gGround"></div>
+    </details>
+    <details class="group"><summary>Big open spaces</summary>
+      <div id="gSquare"></div>
+    </details>
+    <details class="group"><summary class="carver">Carvers</summary>
+      <div id="gCarver"></div>
+    </details>
+    <details class="group"><summary class="mason">Masons</summary>
+      <div id="gMason"></div>
+    </details>
+    <details class="group"><summary>Specialists</summary>
+      <div id="gSpec"></div>
+    </details>
+    <details class="group"><summary style="color:#b0507a">Crowds</summary>
+      <div id="gCrowd"></div>
+    </details>
+    <details class="group"><summary>Program</summary>
+      <div id="gProg"></div>
+    </details>
+    <details class="group"><summary>Evolution</summary>
+      <div id="gEvo"></div>
+    </details>
+    <details class="group"><summary>View</summary>
+      <div class="toggles">
+        <label><input type="checkbox" id="showAgents" checked> Show agents</label>
+        <label><input type="checkbox" id="hatch" checked> Hatching</label>
+        <label><input type="checkbox" id="wrap" checked> Tile edges</label>
+        <label><input type="checkbox" id="seedCross"> Seed cross on reset</label>
+      </div>
+    </details>
+  </div>
+</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- parameters ----------
+const P = {
+  grid:320, target:33, pressure:2.0, speed:30, module:8, pull:0.5, angles:4, precedent:0.9, arc:0.5, arcR:60,
+  nCarver:12, cWidth:1, hierarchy:3, laneShare:0.8, spacing:24, plaza:14, connect:10,
+  nMason:12, block:10, compact:5, smooth:6, blobby:0.4, frontage:0.6, frontLen:6,
+  bigCount:3, bigSize:28,
+  program:0.5, ornament:0.8, hallMax:14, keep:20, shapes:0.4, piers:0.4,
+  carverPace:1, masonPace:1, linkerPace:1, wanderPace:0.1, fencerPace:1, vendorPace:1,
+  nLinker:2, reach:80, bends:1, nWander:1, hallLen:40, stride:40, nFencer:1, gate:20, nVendor:3, stall:4, stallGap:6,
+  crowdN:600, crowdMode:0, crowdRate:1, leaders:10, widePref:4, trample:4, maxTrail:5, linger:150, phaseLen:0,
+  mutation:0.15, lifeMax:300, selection:2,
+};
+const SLIDERS = {
+  gGround:[
+    
+    ['target','Target open ground %',10,80,1,'The share of the map the two species are pushed to leave open.'],
+    ['pressure','Balancing pressure',0,5,0.1,'How hard the system corrects toward the target. Zero lets one side run away.'],
+    ['module','Module',1,16,1,'A suggested rhythm for edges, widths and block sizes. Not a rule: see Module pull.'],
+    ['pull','Module pull',0,1,0.05,'How often an edge lands on the module. At 1 the module becomes a hard grid; at 0 it is ignored.'],
+    ['angles','Street angles',4,64,4,'4 keeps everything at right angles, 8 allows diagonals, 16 and up gets progressively more organic; 64 is effectively free.'],
+    ['arc','Curved runs',0,1,0.05,'Share of carver runs that bend into a gentle arc instead of running dead straight. The street angles setting does not apply to arcs.'],
+    ['arcR','Arc radius',10,300,5,'Radius of those arcs, in cells. Large values are barely perceptible sweeps; small ones are tight curves.'],
+    ['precedent','Follow precedent',0,1,0.05,'How much agents read what is already nearby and repeat it: carvers continue existing streets of their own rank, copy their widths and block lengths; masons straighten facades and copy neighbouring block sizes.'],
+    
+  ],
+  gCarver:[
+    ['nCarver','Population',1,80,1],
+    ['carverPace','Pace',0.02,1,0.02,'Chance a carver acts on any tick. Lower it to slow this class without removing it.'],
+    ['cWidth','Lane width',1,4,1,'Width of the narrowest rank. Streets and avenues are multiples of it.'],
+    ['hierarchy','Hierarchy',1,5,0.25,'Each rank up is this many times wider and runs this many times longer before turning.'],
+    ['laneShare','Lane share',0,1,0.05,'Fraction of carvers born as lanes. Lower this for coarser grain: more streets and avenues, fewer alleys. About one in seven is always an avenue.'],
+    ['spacing','Min block depth',2,48,1,'A carver that senses a parallel street closer than this turns to join it instead of running beside it. The main source of block size.'],
+    ['plaza','Max square size',2,30,1,'Squares carvers open on their own when an avenue or street turns. Unlike planned piazze these can be eroded.'],
+    ['connect','Reward for joining streets',0,20,0.5,'Carvers score extra when a new street meets one dug by someone else.'],
+  ],
+  gMason:[
+    ['nMason','Population',0,80,1],
+    ['masonPace','Pace',0.02,1,0.02,'Chance a mason acts on any tick.'],
+    ['block','Max block size',2,20,1,'Radius of the freestanding blocks masons drop into open space.'],
+    ['smooth','Smoothing',1,12,1,'Masons fill any scrap of open ground smaller than this in both directions. Higher values remove fine grain.'],
+    ['compact','Reward for compactness',0,10,0.25,'Masons score extra for filling cells that are already mostly enclosed.'],
+    ['blobby','Irregular blocks',0,1,0.05,'Share of mason blocks that are blobs or off-angle rectangles instead of orthogonal ones.'],
+    ['frontage','Build-to line',0,1,0.05,'How strongly masons hold a continuous street wall: shallow recesses in a facade get filled so buildings meet the street on one line.'],
+    ['frontLen','Recess width',2,16,1,'Widest recess the build-to line will close. Deeper courtyards and wider squares are left alone.'],
+  ],
+  gSpec:[
+    ['linkerPace','Linker pace',0.02,1,0.02,'Chance a linker acts on any tick. Lower it to slow this class without removing it.'],
+    ['nLinker','Linkers',0,20,1,'Find two big open spaces with building between them and cut a one-cell tunnel from one to the other.'],
+    ['reach','Tunnel reach',10,160,2,'Farthest apart two spaces can be for a linker to bother.'],
+    ['bends','Tunnel bends',0,4,1,'Extra bends allowed in a tunnel beyond the one that turns it toward its target. Zero gives a clean L; more gives staircases.'],
+    ['wanderPace','Wanderer pace',0.02,1,0.02,'Chance a wanderer acts on any tick.'],
+    ['nWander','Wanderers',0,20,1,'Find the deepest solid mass, enter from the nearest street and dig a meandering hallway through it.'],
+    ['hallLen','Hallway length',10,200,5,'How far a hallway runs before it gives up, if it has not met open ground first.'],
+    ['stride','Hallway stride',3,80,1,'Cells a hallway runs straight before it may turn. Small values give zigzags and stairs; large values give long straight galleries.'],
+    ['fencerPace','Fencer pace',0.02,1,0.02,'Chance a fencer acts on any tick.'],
+    ['nFencer','Fencers',0,20,1,'Find where a road runs straight along a public open space and put a fence or wall between them, with gates.'],
+    ['gate','Gate spacing',4,40,1,'Cells between gates in a fence.'],
+    ['vendorPace','Vendor pace',0.02,1,0.02,'Chance a vendor acts on any tick.'],
+    ['nVendor','Vendors',0,20,1,'Build small stalls and kiosks beside the busiest crowd routes, in the squares and along the worn paths, never on the path itself.'],
+    ['stall','Stall size',2,8,1,'Longest side of a stall.'],
+    ['stallGap','Stall spacing',2,20,1,'Minimum distance between stalls.'],
+  ],
+  gSquare:[
+    ['bigCount','Big spaces to keep',0,6,1,'The map should always have at least this many dramatically large open spaces. Those that exist are off-limits to masons and fencers; if fewer remain, the carvers open a new one in the deepest building mass.'],
+    ['bigSize','Big space size',10,80,2,'Roughly the side of a space that counts as big, in cells. New spaces the carvers open are about this size.'],
+  ],
+  gCrowd:[
+    ['crowdMode','Crowd mode',0,1,1,'0: square to square, leaders and followers. 1: homecoming, where every particle has a home in the tight small-grained parts of the map, evenly spread, and commutes between it and the nearest big space. Their routes merge as they near the square, like a river delta.'],
+    ['crowdRate','Crowd update rate',0.1,1,0.05,'Share of the crowd that moves each tick. Lower it to keep a very large crowd cheap: 3000 particles at 0.25 cost about what 750 do at 1.'],
+    ['crowdN','Crowd size',0,3000,50,'Particles in the crowd. They gather in the big open spaces, then set off for another one. Masons and fencers never build where the crowd currently is.'],
+    ['leaders','Leaders %',0,100,5,'Share of the crowd that plans a proper route (path of least resistance, wide streets cheap). The rest follow: they drift toward footfall and open ground, so they trail the leaders and thicken the same routes.'],
+    ['widePref','Wide-path preference',0,12,0.5,'How much cheaper a wide street is for a leader to travel than a narrow one.'],
+    ['trample','Trample',1,20,1,'Footfall over a cell before the crowd wears the path there one cell wider. Trafficked cells are also protected from masons.'],
+    ['maxTrail','Max trail width',1,12,1,'Widest a crowd route can be worn to.'],
+    ['linger','Linger',20,600,10,'Ticks a particle rests in a square before setting off again.'],
+    ['phaseLen','Auto-alternate every',0,4000,100,'Toggle Crowds only automatically every this many ticks, so building and crowd-wearing take turns. 0 leaves it to the button and the class switches.'],
+  ],
+  gProg:[
+    ['program','Program rate',0,1,0.05,'How often the planner tries to place a piazza, hall, courtyard or portico. Planned program is public: masons cannot fill it.'],
+    ['ornament','Ornament',0,1,0.05,'Chance that a program gets its columns: nave rows in halls, a peristyle in courtyards, a portico along piazze and avenues.'],
+    ['hallMax','Max hall size',4,30,1,'Longest side of a planned hall or courtyard, in cells.'],
+    ['shapes','Shape variety',0,1,0.05,'Share of planned program that is an ellipse, circle, octagon or apsed hall instead of a rectangle.'],
+    ['piers','Big piers',0,1,0.05,'Share of columns built as two-by-two piers instead of single columns.'],
+    ['keep','Public interior cap %',5,40,1,'Planned program stops being placed once it covers this share of the map; wanderers\' hallways get a quarter of it.'],
+  ],
+  gEvo:[
+    ['mutation','Mutation',0,1,0.01,'How far a child\'s genes drift from its parent.'],
+    ['selection','Selection strength',1,12,1,'Tournament size when choosing a parent. 1 is random (no selection); 6 means only the fittest breed.'],
+    ['lifeMax','Max lifespan',50,2000,10,'Longest an agent can live before it dies and is replaced by a mutated child of a fit survivor.'],
+  ],
+};
+for (const [gid, list] of Object.entries(SLIDERS)) {
+  const host = document.getElementById(gid);
+  for (const [key,label,min,max,step,note] of list) {
+    const row = document.createElement('div'); row.className='row';
+    const id = 'in_'+key;
+    row.innerHTML = `<label for="${id}">${label}</label><output id="out_${key}">${P[key]}</output>
+      <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${P[key]}">` + (note?`<small>${note}</small>`:'');
+    host.appendChild(row);
+    const inp = row.querySelector('input'), out = row.querySelector('output');
+    inp.addEventListener('input', () => {
+      P[key] = parseFloat(inp.value); out.textContent = inp.value;
+      if (key==='grid') reset();
+      if (key==='nCarver') resize(0, P.nCarver);
+      if (key==='nMason') resize(1, P.nMason);
+      if (key==='nLinker') resize(2, P.nLinker);
+      if (key==='nWander') resize(3, P.nWander);
+      if (key==='nFencer') resize(4, P.nFencer);
+      if (key==='nVendor') resize(5, P.nVendor);
+      if ((key==='crowdN'||key==='crowdMode') && crowd) makeCrowd(P.crowdN);
+    });
+  }
+}
+
+// quick bar
+for(const key of ['grid','speed']){
+  const inp=document.getElementById('in_'+key), out=document.getElementById('out_'+key);
+  inp.value=P[key]; out.textContent=P[key];
+  inp.addEventListener('input',()=>{ P[key]=parseFloat(inp.value); out.textContent=inp.value; if(key==='grid') reset(); });
+}
+
+// ---------- world ----------
+const SOLID=0, STREET=1, INTERIOR=2, COLUMN=3, TUNNEL=4, HALL=5;
+const isOpen = v => v===STREET || v===INTERIOR || v===TUNNEL || v===HALL;
+const isSolidCell = v => v===SOLID;
+// who made each cell (for the diagnostic view)
+const K_TRAIL=16, K_SQUARE=17, K_STALL=18;
+const K_ORIG=0, K_AVENUE=1, K_STREET=2, K_LANE=3, K_MASON=4, K_BLOCK=5, K_TUNNEL=6, K_HALLWAY=7, K_FENCE=8, K_PIAZZA=9, K_HALL=10, K_COURT=11, K_ARCADE=12, K_PASSAGE=13, K_HAND=14, K_SEED=15;
+let W, H, cells, owner, kind, age, openness, square, traffic, lastT, gcost, came, heapN, heapV, agents, nextId, deaths, tick, frac=0, passages=0, programs=0, interiorCells=0, hallCells=0, links=0, halls=0, fences=0, comp, stack, dist, root;
+let WRAP=true;
+const alive = new Map();
+const rnd = Math.random;
+const gauss = () => { let u=0,v=0; while(!u)u=rnd(); while(!v)v=rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+
+// ---------- topology (the map can be a torus) ----------
+const wrapX = x => { x%=W; return x<0?x+W:x; };
+const wrapY = y => { y%=H; return y<0?y+H:y; };
+function at(x,y){ x|=0; y|=0; if(WRAP) return wrapY(y)*W+wrapX(x); return (x<0||y<0||x>=W||y>=H)?-1:y*W+x; }
+function nb(i,k){ const x=i%W;   // 0 left, 1 right, 2 up, 3 down
+  switch(k){ case 0: return x>0?i-1:(WRAP?i+W-1:-1); case 1: return x<W-1?i+1:(WRAP?i-W+1:-1);
+             case 2: return i>=W?i-W:(WRAP?i+W*(H-1):-1); default: return i<W*(H-1)?i+W:(WRAP?i-W*(H-1):-1); } }
+const delta = (to,from,n) => { let d=to-from; if(WRAP){ if(d>n/2) d-=n; else if(d<-n/2) d+=n; } return d; };
+function ray(x,y,dx,dy,test,max){ x|=0; y|=0; let n=0;
+  while(n<max){ x+=dx; y+=dy; const i=at(x,y); if(i<0||!test(cells[i])) return n; n++; } return n; }
+const dirOf = h => [Math.round(Math.cos(h)), Math.round(Math.sin(h))];
+function snapHeading(h){ const q=2*Math.PI/P.angles; return Math.round(h/q)*q; }
+function snapLo(v){ const m=P.module; return Math.floor(v/m)*m; }
+function snapHi(v){ const m=P.module; return Math.ceil(v/m)*m; }
+
+// ---------- genomes ----------
+const GENES = { life:[30,800], wobble:[0,0.6], turnP:[0,0.25], ortho:[0,1], width:[1,4], burstP:[0,0.03], burstR:[1,14] };
+function randomGenome(){ const g={}; for(const k in GENES){const [a,b]=GENES[k]; g[k]=a+rnd()*(b-a);} return g; }
+function mutate(g){ const c={}; for(const k in GENES){const [a,b]=GENES[k]; c[k]=clamp(g[k]+gauss()*P.mutation*(b-a)*0.5,a,b);} return c; }
+function fitness(a){ return a.score/(a.age+10); }
+const rankScale = a => Math.pow(P.hierarchy, 2-a.rank);
+const rankW = a => Math.max(1, Math.round(Math.min(a.g.width,P.cWidth)*rankScale(a)));
+
+function randomCell(state){ for(let i=0;i<60;i++){ const idx=(rnd()*W*H)|0; if(state===undefined?isOpen(cells[idx]):cells[idx]===state) return idx; } return -1; }
+function spawn(sp, genome, rank){
+  if(rank===undefined){ const r=rnd(); rank = r<0.14?0 : r<1-P.laneShare?1 : 2; }
+  let idx=-1, h=snapHeading(rnd()*Math.PI*2);
+  if(sp===0){ // branch from the rank above: lanes start on streets, streets on avenues
+    const need = rank===2 ? Math.round(P.cWidth*P.hierarchy) : rank===1 ? Math.round(P.cWidth*P.hierarchy*P.hierarchy) : 1;
+    for(let t=0;t<80&&idx<0;t++){ const c=(rnd()*W*H)|0; if(!isOpen(cells[c])) continue; const x=c%W, y=(c/W)|0;
+      const wx=1+ray(x,y,1,0,isOpen,12)+ray(x,y,-1,0,isOpen,12), wy=1+ray(x,y,0,1,isOpen,12)+ray(x,y,0,-1,isOpen,12);
+      const width=Math.min(wx,wy); if(width>=need && width<=need*2+1){ idx=c; h = wx>wy ? (rnd()<0.5?Math.PI/2:-Math.PI/2) : (rnd()<0.5?0:Math.PI); } }
+  }
+  if(idx<0) idx=randomCell(); if(idx<0) idx=(rnd()*W*H)|0;
+  const a = { id:nextId++, sp, rank, x:(idx%W)+0.5, y:((idx/W)|0)+0.5, h, age:0, score:0, lastJoin:-99,
+              g:genome||randomGenome(), w:1, run:0, lastRun:0, runTarget:P.module*4, snap:rnd()<P.pull,
+              tx:-1, ty:-1, axis:0, active:false, turnSign:1, stride:4, len:0, joining:false, born:tick, arcK:0, path:null, pi:0 };
+  a.g.life=Math.min(a.g.life,P.lifeMax); a.w=rankW(a);
+  agents.push(a); alive.set(a.id,a); return a;
+}
+function tournament(sp, rank){
+  let best=null;
+  for(let i=0;i<P.selection;i++){
+    let cand=null;
+    for(let t=0;t<16;t++){ const c=agents[(rnd()*agents.length)|0]; if(c&&c.sp===sp&&(rank===undefined||c.rank===rank)){cand=c;break;} }
+    if(cand && (!best || fitness(cand)>fitness(best))) best=cand;
+  }
+  return best;
+}
+function resize(sp, n){
+  let have=agents.filter(a=>a.sp===sp).length;
+  while(have<n){ const par=tournament(sp); spawn(sp, par?mutate(par.g):null); have++; }
+  while(have>n){ const i=agents.findIndex(a=>a.sp===sp); alive.delete(agents[i].id); agents.splice(i,1); have--; }
+}
+const lineage={ births:0, fromFit:0 };
+function die(a){
+  const i=agents.indexOf(a); if(i>=0) agents.splice(i,1); alive.delete(a.id); deaths++;
+  const rank = a.sp===0 ? undefined : undefined;
+  const par=tournament(a.sp, rank);
+  lineage.births++; if(par && fitness(par)>0) lineage.fromFit++;
+  spawn(a.sp, par?mutate(par.g):null);
+}
+
+// ---------- cell writes ----------
+function setCell(i, val, k, a){
+  const cur=cells[i]; if(cur===val) return;
+  const prev=owner[i];
+  if(prev>=0 && a && prev!==a.id){ const o=alive.get(prev); if(o) o.score-=1; }   // you undid someone's work: they lose
+  if(cur===INTERIOR) interiorCells--; if(cur===HALL) hallCells--;
+  if(val===INTERIOR) interiorCells++; if(val===HALL) hallCells++;
+  cells[i]=val; owner[i]=a?a.id:-1; kind[i]=k; age[i]=tick;
+}
+// axis-aligned rectangle; val STREET carves building, val SOLID fills street. force also overrides program, columns, tunnels.
+function rectFill(x0,y0,x1,y1,val,a,snap,force,k){
+  if(snap===undefined) snap = a ? a.snap : rnd()<P.pull;
+  if(snap){ x0=snapLo(x0); y0=snapLo(y0); x1=snapHi(x1); y1=snapHi(y1); }
+  else { x0=Math.floor(x0); y0=Math.floor(y0); x1=Math.ceil(x1); y1=Math.ceil(y1); }
+  if(x1<=x0) x1=x0+1; if(y1<=y0) y1=y0+1;
+  if(k===undefined) k = a ? (a.sp===0 ? [K_AVENUE,K_STREET,K_LANE][a.rank] : K_MASON) : K_HAND;
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){
+    const i=at(x,y); if(i<0) continue; const cur=cells[i];
+    if(val===STREET){
+      if(cur!==SOLID){
+        if(cur===STREET && a && a.sp===0 && P.connect>0 && tick-a.lastJoin>6){ const o=owner[i]; if(o>=0&&o!==a.id){ a.score+=P.connect; a.lastJoin=tick; } }
+        if(!(force && cur===COLUMN)) continue;
+      }
+    } else if(cur!==STREET && !force) continue;
+    setCell(i,val,k,a);
+    if(a){
+      a.score+=1;
+      if(a.sp===1 && P.compact>0){ let n=0; for(let k2=0;k2<4;k2++){ const j=nb(i,k2); if(j<0||!isOpen(cells[j])) n++; } a.score+=P.compact*n/4; }
+    }
+  }
+}
+function brush(a,w,val){
+  const c=Math.cos(a.h), s=Math.sin(a.h), x=Math.floor(a.x), y=Math.floor(a.y), hw=w/2;
+  if(a.arcK){ rectFill(a.x-hw, a.y-hw, a.x+hw, a.y+hw, val, a, false); return; }
+  if(Math.abs(c)>Math.abs(s)*1.5)      rectFill(x, a.y-hw, x+1, a.y+hw, val, a, false);
+  else if(Math.abs(s)>Math.abs(c)*1.5) rectFill(a.x-hw, y, a.x+hw, y+1, val, a, false);
+  else                                 rectFill(a.x-hw, a.y-hw, a.x+hw, a.y+hw, val, a, false);
+}
+// can this open cell be closed without splitting the open ground around it?
+function closable(i){
+  const x=i%W, y=(i/W)|0, ring=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+  let arcs=0, prev=false, first=false;
+  for(let k=0;k<8;k++){ const j=at(x+ring[k][0],y+ring[k][1]); const o=j>=0&&isOpen(cells[j]);
+    if(k===0) first=o; else if(o&&!prev) arcs++; prev=o; }
+  if(first&&!prev) arcs++;
+  return arcs<=1;
+}
+
+// distance from every open cell to the nearest solid, capped: the width field crowds read
+function computeOpenness(){
+  const N=cells.length; let qh=0, qt=0;
+  for(let i=0;i<N;i++){ if(isOpen(cells[i])) openness[i]=255; else { openness[i]=0; stack[qt++]=i; } }
+  while(qh<qt){ const i=stack[qh++], d=openness[i]+1; if(d>8) continue;
+    for(let k=0;k<4;k++){ const j=nb(i,k); if(j>=0&&openness[j]===255){ openness[j]=d; stack[qt++]=j; } } }
+  for(let i=0;i<N;i++) if(openness[i]===255) openness[i]=8;
+  findSquares();
+}
+// ---------- the big open spaces ----------
+let CORE=4; const BLOB=65535;
+const protectedCell = i => square[i]>0 && square[i]!==BLOB;
+let squares=[], squareSeq=0, lastSquareT=-1e9, routes=new Map();
+function findSquares(){
+  const av=Math.round(P.cWidth*P.hierarchy*P.hierarchy);                     // a big space must be wider than an avenue, or the avenue network counts as one
+  CORE=clamp(Math.max(Math.round(P.bigSize/6), Math.floor(av/2)+2),3,8);
+  const N=cells.length, old=squares, minArea=Math.max(9,(P.bigSize/2)*(P.bigSize/2)); square.fill(0);
+  const found=[], blobs=[], maxArea=(P.bigSize*1.6)*(P.bigSize*1.6); let lab=0;
+  for(let s=0;s<N;s++){ if(square[s]||openness[s]<CORE) continue;
+    lab++; let sp=0, n=0, best=s, bo=0; stack[sp++]=s; square[s]=lab; const members=[];
+    while(sp){ const i=stack[--sp]; n++; members.push(i); if(openness[i]>bo){ bo=openness[i]; best=i; }
+      for(let k=0;k<4;k++){ const j=nb(i,k); if(j>=0&&!square[j]&&openness[j]>=CORE){ square[j]=lab; stack[sp++]=j; } } }
+    if(n>maxArea) blobs.push({lab, area:n, seed:best, cells:members, blob:true});   // an oversized pool: a crowd destination, but not protected; masons are pushed to carve it up
+    else if(n>=minArea) found.push({lab, area:n, seed:best, cells:members});
+  }
+  found.sort((a,b)=>b.area-a.area); const keep=found.slice(0,Math.max(1,P.bigCount)+1);
+  const map=new Int32Array(lab+1), used=new Set(); for(const b of blobs){ map[b.lab]=BLOB; b.id=BLOB; }
+  for(const q of keep){ const o=old.find(o=>square[o.seed]===q.lab && !used.has(o.id)); q.id = o ? o.id : ++squareSeq; used.add(q.id); map[q.lab]=q.id; }
+  for(let i=0;i<N;i++) if(square[i]) square[i]=map[square[i]];
+  let qh=0, qt=0; for(let i=0;i<N;i++){ if(square[i]){ dist[i]=0; stack[qt++]=i; } else dist[i]=-1; }   // out to the walls
+  while(qh<qt){ const i=stack[qh++], d=dist[i]+1; if(d>CORE) continue;
+    for(let k=0;k<4;k++){ const j=nb(i,k); if(j>=0&&dist[j]<0&&isOpen(cells[j])){ dist[j]=d; square[j]=square[i]; stack[qt++]=j; } } }
+  squares=keep.concat(blobs); routes.clear();
+}
+function realSquares(){ let n=0; for(const q of squares) if(!q.blob) n++; return n; }
+// the carvers' reply when a big space is lost: open a new one in the deepest building mass
+function openSquare(){
+  const N=cells.length; let qh=0, qt=0;
+  for(let i=0;i<N;i++){ if(isOpen(cells[i])){ dist[i]=0; stack[qt++]=i; } else dist[i]=-1; }
+  while(qh<qt){ const i=stack[qh++], d=dist[i]+1; for(let k=0;k<4;k++){ const j=nb(i,k); if(j>=0&&dist[j]<0){ dist[j]=d; stack[qt++]=j; } } }
+  let bd=0, bi=-1; for(let i=0;i<N;i++) if(dist[i]>bd || (dist[i]===bd && rnd()<0.1)){ bd=dist[i]; bi=i; }
+  if(bi<0) return;
+  const s=P.bigSize*(0.85+rnd()*0.4), ar=0.75+rnd()*0.5, hw=s*ar/2, hh=s/ar/2, x=bi%W, y=(bi/W)|0;
+  const carvers=agents.filter(a=>a.sp===0), a=carvers.length?carvers[(rnd()*carvers.length)|0]:null;
+  rectFill(x-hw,y-hh,x+hw,y+hh,STREET,a,rnd()<P.pull,false,K_SQUARE);
+  if(a) a.score+=20; lastSquareT=tick;
+}
+const TAU=6000; let lastDecay=0;
+function trafficAt(i){ return traffic[i]; }
+function decayTraffic(){ const f=Math.exp(-(tick-lastDecay)/TAU); lastDecay=tick; for(let i=0;i<traffic.length;i++) if(traffic[i]>0){ traffic[i]*=f; if(traffic[i]<0.02) traffic[i]=0; } }
+
+// ---------- connectivity: pockets get a passage to the nearest street ----------
+let reconnects=0;
+function reconnect(){
+  if(reconnects++%4===0){ decayTraffic(); computeOpenness(); }
+  comp.fill(0); let nc=0, bestC=0, bestN=0; const N=cells.length;
+  for(let s=0;s<N;s++){
+    if(!isOpen(cells[s])||comp[s]) continue;
+    nc++; let n=0, sp=0; stack[sp++]=s; comp[s]=nc;
+    while(sp){ const i=stack[--sp]; n++;
+      for(let k=0;k<4;k++){ const j=nb(i,k); if(j>=0&&isOpen(cells[j])&&!comp[j]){ comp[j]=nc; stack[sp++]=j; } } }
+    if(n>bestN){ bestN=n; bestC=nc; }
+  }
+  if(nc<=1) return;
+  dist.fill(-1); let qh=0, qt=0;
+  for(let i=0;i<N;i++) if(isOpen(cells[i]) && comp[i]===bestC){ dist[i]=0; root[i]=i; stack[qt++]=i; }
+  while(qh<qt){ const i=stack[qh++], d=dist[i]+1, r=root[i];
+    for(let k=0;k<4;k++){ const j=nb(i,k); if(j>=0&&dist[j]<0){ dist[j]=d; root[j]=r; stack[qt++]=j; } } }
+  const best=new Int32Array(nc+1).fill(-1), bestD=new Int32Array(nc+1).fill(0x7fffffff);
+  for(let i=0;i<N;i++) if(isOpen(cells[i]) && comp[i]!==bestC){ const c=comp[i]; if(dist[i]<bestD[c]){ bestD[c]=dist[i]; best[c]=i; } }
+  for(let c=1;c<=nc;c++) if(c!==bestC && best[c]>=0) carvePassage(best[c], root[best[c]]);
+}
+function carvePassage(a,b){
+  const ax=a%W, ay=(a/W)|0, bx=b%W, by=(b/W)|0, dx=delta(bx,ax,W), dy=delta(by,ay,H);
+  if(rnd()<0.5){ rectFill(Math.min(ax,ax+dx), ay, Math.max(ax,ax+dx)+1, ay+1, STREET, null, false, true, K_PASSAGE);
+                 rectFill(ax+dx, Math.min(ay,ay+dy), ax+dx+1, Math.max(ay,ay+dy)+1, STREET, null, false, true, K_PASSAGE); }
+  else {         rectFill(ax, Math.min(ay,ay+dy), ax+1, Math.max(ay,ay+dy)+1, STREET, null, false, true, K_PASSAGE);
+                 rectFill(Math.min(ax,ax+dx), ay+dy, Math.max(ax,ax+dx)+1, ay+dy+1, STREET, null, false, true, K_PASSAGE); }
+  passages++;
+}
+
+// ---------- carvers & masons ----------
+function steer(a){
+  const g=a.g, q=2*Math.PI/P.angles, m=P.module, pr=P.precedent;
+  a.run++;
+  const turnBase = a.sp===0 ? g.turnP/rankScale(a) : g.turnP;
+  let pTurn = turnBase*(1-pr);
+  if(pr>0){ const t=a.runTarget; pTurn += pr*(a.run>=t ? 0.6 : a.run>=t*0.75 ? 0.04 : 0.002); }
+  if(rnd()<pTurn){
+    const k = rnd()<g.ortho ? Math.max(1,Math.round(P.angles/4)) : 1;
+    a.h = snapHeading(snapHeading(a.h) + (rnd()<0.5?1:-1)*q*k);
+    a.snap = rnd()<P.pull;
+    const ox=a.x, oy=a.y, [ndx,ndy]=dirOf(a.h);
+    a.x=Math.floor(a.x)+0.5; a.y=Math.floor(a.y)+0.5;
+    if(a.snap){ if(ndx&&!ndy) a.y=snapLo(oy)+0.5; else if(ndy&&!ndx) a.x=snapLo(ox)+0.5; }   // line the new run up on the module
+    if(a.sp===0 && (a.x!==ox||a.y!==oy)){ const hw=a.w/2; rectFill(Math.min(ox,a.x)-hw, Math.min(oy,a.y)-hw, Math.max(ox,a.x)+hw, Math.max(oy,a.y)+hw, STREET, a, false); }
+    a.lastRun=a.run; a.run=0;
+    if(a.sp===0){
+      planRun(a);
+      if(a.rank<2 && rnd()<g.burstP*8){ const r=Math.min(g.burstR,P.plaza)*rankScale(a)/P.hierarchy, hx=r*(0.5+rnd()*0.9), hy=r*(0.5+rnd()*0.9);
+        rectFill(a.x-hx,a.y-hy,a.x+hx,a.y+hy,STREET,a); }
+    } else a.runTarget = (a.lastRun>0 && rnd()<pr) ? a.lastRun*(0.85+rnd()*0.3) : m*(1+rnd()*8);
+  } else if(rnd()<g.wobble*0.05*(1-pr)){   // jog: sidestep one module, keep going
+    const c=Math.cos(a.h), s=Math.sin(a.h), side=rnd()<0.5?m:-m, ox=a.x, oy=a.y;
+    if(Math.abs(c)>Math.abs(s)) a.y=Math.floor(a.y+side)+0.5; else a.x=Math.floor(a.x+side)+0.5;
+    if(a.sp===0){ const hw=a.w/2; rectFill(Math.min(ox,a.x)-hw, Math.min(oy,a.y)-hw, Math.max(ox,a.x)+hw, Math.max(oy,a.y)+hw, STREET, a, false); }
+    wrapAgent(a);
+  }
+}
+function planRun(a){
+  const pr=P.precedent, m=P.module, [dx,dy]=dirOf(a.h), px=-dy, py=dx, rw=rankW(a), tol=Math.max(1,rw*0.5), R=Math.max(4,m*4);
+  if((dx||dy) && rnd()<pr){ // a street of my rank already runs this way close by: step onto it and continue its line
+    outer: for(let k=1;k<=R;k++) for(const sg of [1,-1]){
+      const cx=(a.x|0)+px*k*sg, cy=(a.y|0)+py*k*sg, ci=at(cx,cy);
+      if(ci<0||!isOpen(cells[ci])) continue;
+      if(ray(cx,cy,dx,dy,isOpen,6)>=3 && ray(cx,cy,-dx,-dy,isOpen,6)>=3){
+        const wt=1+ray(cx,cy,px,py,isOpen,12)+ray(cx,cy,-px,-py,isOpen,12);
+        if(Math.abs(wt-rw)<=tol){ a.x=wrapX(cx)+0.5; a.y=wrapY(cy)+0.5; break outer; } }
+    }
+  }
+  const x=a.x|0, y=a.y|0, ci=at(x,y);
+  const wHere = isOpen(cells[ci]) ? 1+ray(x,y,px,py,isOpen,12)+ray(x,y,-px,-py,isOpen,12) : 0;
+  a.w = (wHere>0 && Math.abs(wHere-rw)<=tol && rnd()<pr) ? wHere : rw;
+  let depth=0;
+  for(const sg of [1,-1]){ const v=ray(x,y,px*sg,py*sg,isOpen,12), sx=x+px*sg*(v+1), sy=y+py*sg*(v+1);
+    if(at(sx,sy)<0) continue; const s=ray(sx,sy,px*sg,py*sg,v=>!isOpen(v),W>>2)+1; if(s<(W>>2) && (depth===0||s<depth)) depth=s; }
+  const sc=rankScale(a);
+  if(rnd()<pr){ const c=[]; if(a.lastRun>m) c.push(a.lastRun); if(depth>m) c.push(depth*sc);
+    a.runTarget = c.length ? c[(rnd()*c.length)|0]*(0.85+rnd()*0.3) : m*(2+rnd()*6)*sc; }
+  else a.runTarget = m*(1+rnd()*8)*sc;
+  if(a.rank===0) a.runTarget=Math.max(a.runTarget, W*0.35);
+  a.arcK = rnd()<P.arc ? (rnd()<0.5?1:-1)/Math.max(4,P.arcR) : 0;
+}
+function wrapAgent(a){
+  if(WRAP){ a.x=((a.x%W)+W)%W; a.y=((a.y%H)+H)%H; return; }
+  if(a.x<1||a.y<1||a.x>W-1||a.y>H-1){ a.x=clamp(a.x,1,W-1); a.y=clamp(a.y,1,H-1); a.h=snapHeading(Math.atan2(H/2-a.y, W/2-a.x)+(rnd()-0.5)*1.2); }
+}
+function move(a){ if(a.arcK){ a.h+=a.arcK; } else a.h=snapHeading(a.h); a.x+=Math.cos(a.h); a.y+=Math.sin(a.h); wrapAgent(a); }
+
+function masonBlock(a, excess){
+  const pr=P.precedent, x=a.x|0, y=a.y|0, cap=P.block*2, r=Math.min(a.g.burstR,P.block);
+  let bw=0, bh=0;
+  if(rnd()<pr){
+    for(const sg of [1,-1]){ const v=ray(x,y,sg,0,isOpen,20), si=at(x+sg*(v+1),y);
+      if(si>=0&&cells[si]===SOLID){ const s=ray(x+sg*(v+1),y,sg,0,isSolidCell,cap)+1; if(s<=cap&&(!bw||s<bw)) bw=s; } }
+    for(const sg of [1,-1]){ const v=ray(x,y,0,sg,isOpen,20), si=at(x,y+sg*(v+1));
+      if(si>=0&&cells[si]===SOLID){ const s=ray(x,y+sg*(v+1),0,sg,isSolidCell,cap)+1; if(s<=cap&&(!bh||s<bh)) bh=s; } }
+  }
+  const hx=(bw||r*(1+rnd()*1.8))/2, hy=(bh||r*(1+rnd()*1.8))/2;
+  let x0=a.x-hx, y0=a.y-hy, x1=a.x+hx, y1=a.y+hy;
+  if(a.snap){ x0=snapLo(x0); y0=snapLo(y0); x1=snapHi(x1); y1=snapHi(y1); } else { x0=Math.floor(x0); y0=Math.floor(y0); x1=Math.ceil(x1); y1=Math.ceil(y1); }
+  // the block itself must be open street
+  if(rnd()<P.blobby){ blobBlock(a, a.x, a.y, hx, hy); return; }
+  for(let yy=y0;yy<y1;yy++)for(let xx=x0;xx<x1;xx++){ const i=at(xx,yy); if(i<0||cells[i]!==STREET||protectedCell(i)||inCrowd(i)) return; }
+  // sides: each is either fully against solid (attached) or fully open
+  const side=(cellsOf)=>{ let solid=0, open=0; for(const i of cellsOf){ if(i<0) return 'x'; if(isOpen(cells[i])) open++; else solid++; } return solid&&open?'mixed':solid?'solid':'open'; };
+  const top=[],bot=[],lef=[],rig=[];
+  for(let xx=x0;xx<x1;xx++){ top.push(at(xx,y0-1)); bot.push(at(xx,y1)); }
+  for(let yy=y0;yy<y1;yy++){ lef.push(at(x0-1,yy)); rig.push(at(x1,yy)); }
+  const sides=[side(top),side(bot),side(lef),side(rig)];
+  if(sides.includes('mixed')||sides.includes('x')) return;
+  const attached=sides.filter(s=>s==='solid').length;
+  if(attached===0){ // freestanding island: only with a broad margin of open ground, so it reads as a building in a square, not a moat
+    for(let k=2;k<=3;k++){ for(let xx=x0-k;xx<x1+k;xx++){ const i1=at(xx,y0-k), i2=at(xx,y1+k-1); if(i1<0||i2<0||!isOpen(cells[i1])||!isOpen(cells[i2])) return; }
+      for(let yy=y0-k;yy<y1+k;yy++){ const i1=at(x0-k,yy), i2=at(x1+k-1,yy); if(i1<0||i2<0||!isOpen(cells[i1])||!isOpen(cells[i2])) return; } }
+  } else if(attached>2) return;   // would seal a slot
+  rectFill(x0, y0, x1, y1, SOLID, a, false, false, K_BLOCK);
+}
+// a recess in a facade: open on one side only, off a real street, bounded within frontLen by building that projects a few cells toward the street
+function inRecess(x,y,l,r,u,d){
+  const sx=l?-1:r?1:0, sy=u?-1:d?1:0, fx=sy?1:0, fy=sx?1:0, L=P.frontLen;
+  if(ray(x,y,-sx,-sy,isOpen,4)<3) return false;
+  const p1=ray(x,y,fx,fy,isOpen,L), p2=ray(x,y,-fx,-fy,isOpen,L); if(p1>=L||p2>=L) return false;
+  const notOpen=v=>!isOpen(v);
+  for(const [ex,ey] of [[x+fx*(p1+1),y+fy*(p1+1)],[x-fx*(p2+1),y-fy*(p2+1)]]){
+    const e=at(ex,ey); if(e<0||isOpen(cells[e])) return false;
+    const depth=ray(ex,ey,-sx,-sy,notOpen,5); if(depth<1||depth>3) return false; }
+  return true;
+}
+// irregular block: half off-angle rectangles, half accreted blobs; attached to a facade or freestanding with a margin
+function blobBlock(a, cx, cy, hx, hy){
+  const shape=[], mark=new Set();
+  if(rnd()<0.5){
+    const ang = P.angles>4 ? Math.floor(rnd()*P.angles)*(2*Math.PI/P.angles) : rnd()*Math.PI, c=Math.cos(ang), s=Math.sin(ang), R=hx+hy;
+    for(let yy=Math.floor(cy-R);yy<=cy+R;yy++)for(let xx=Math.floor(cx-R);xx<=cx+R;xx++){ const dx=xx+0.5-cx, dy=yy+0.5-cy, u=dx*c+dy*s, v=-dx*s+dy*c;
+      if(Math.abs(u)<=hx&&Math.abs(v)<=hy){ const i=at(xx,yy); if(i<0) return; shape.push(i); mark.add(i); } }
+  } else {
+    const target=Math.max(4,Math.round(hx*hy*4*(0.6+rnd()*0.5))), seed=at(cx,cy); if(seed<0) return; shape.push(seed); mark.add(seed);
+    while(shape.length<target){ let best=-1, bs=-1;
+      for(let t=0;t<12;t++){ const i=shape[(rnd()*shape.length)|0], j=nb(i,(rnd()*4)|0); if(j<0||mark.has(j)) continue;
+        let n=0; for(let k=0;k<4;k++) if(mark.has(nb(j,k))) n++; const sc=n+rnd()*0.8; if(sc>bs){ bs=sc; best=j; } }
+      if(best<0) break; shape.push(best); mark.add(best); }
+  }
+  if(shape.length<4) return;
+  for(const i of shape) if(cells[i]!==STREET||protectedCell(i)||inCrowd(i)) return;
+  let attached=0, open=0;
+  for(const i of shape) for(let k=0;k<4;k++){ const j=nb(i,k); if(j<0) return; if(mark.has(j)) continue; if(isOpen(cells[j])) open++; else attached++; }
+  if(attached===0){ for(const i of shape){ const x=i%W, y=(i/W)|0; for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){ const j=at(x+dx,y+dy); if(j<0||!isOpen(cells[j])) return; } } }
+  else if(attached>(attached+open)*0.6) return;   // would seal a slot
+  shape.sort((i,j)=>i-j);   // raster order keeps each fill closable
+  for(const i of shape) if(closable(i)){ setCell(i,SOLID,K_BLOCK,a); a.score+=1+P.compact*0.5; }
+  for(const i of shape) if(cells[i]===STREET){ let n=0; for(let k=0;k<4;k++){ const j=nb(i,k); if(j<0||!isOpen(cells[j])) n++; } if(n===4) setCell(i,SOLID,K_BLOCK,a); }
+}
+function masonAct(a, excess){
+  const g=a.g, x=a.x|0, y=a.y|0, ci=at(x,y);
+  if(inCrowd(ci)){ a.h=snapHeading(a.h+Math.PI+(rnd()-0.5)); return; }   // the crowd is here: turn back
+  const L=nb(ci,0), R=nb(ci,1), U=nb(ci,2), D=nb(ci,3);
+  const l=L<0||!isOpen(cells[L]), r=R<0||!isOpen(cells[R]), u=U<0||!isOpen(cells[U]), d=D<0||!isOpen(cells[D]);
+  const ns=(l|0)+(r|0)+(u|0)+(d|0);
+  if(cells[ci]===STREET){
+    let corner=(l||r)&&(u||d);
+    if(corner){ const di=at(x+(l?-1:1), y+(u?-1:1)); corner = di<0 || !isOpen(cells[di]); }   // a true notch, not a step on a curve
+    const ex=ray(x,y,1,0,isOpen,P.smooth)+ray(x,y,-1,0,isOpen,P.smooth), ey=ray(x,y,0,1,isOpen,P.smooth)+ray(x,y,0,-1,isOpen,P.smooth);
+    const crumb = ex<P.smooth && ey<P.smooth;                      // a scrap of open ground, not a lane
+    const blob = square[ci]===BLOB, prot = protectedCell(ci), busy = trafficAt(ci) > P.trample*(0.5+2*excess);   // a used route: leave it (less so when badly over-open)
+    if(busy){ /* crowds keep this open */ }
+    else if(ns===1 && P.frontage>0 && rnd()<P.frontage && closable(ci) && inRecess(x,y,l,r,u,d)) rectFill(x,y,x+1,y+1,SOLID,a,false);
+    else if(ns>0 && closable(ci) && (corner || ns>=3 || crumb)) rectFill(x,y,x+1,y+1,SOLID,a,false);
+    else if(prot){ /* a protected big space: notches and recesses may be tidied, nothing more */ }
+    else if(ns===1 && closable(ci) && rnd()<Math.max(excess, blob?0.6:0)){   // over-open, or an oversized pool: take a whole straight facade run
+      const [fx,fy] = (l||r) ? [0,1] : [1,0], sx=l?-1:r?1:0, sy=u?-1:d?1:0;
+      const run=(dx,dy)=>{ let n=0; for(let k=1;k<=12;k++){ const cx=x+dx*k, cy=y+dy*k, ci2=at(cx,cy), wi=at(cx+sx,cy+sy);
+        if(ci2<0||cells[ci2]!==STREET||wi<0||isOpen(cells[wi])) break;
+        let n2=0; for(let q=0;q<4;q++){ const j=nb(ci2,q); if(j<0||!isOpen(cells[j])) n2++; }
+        if(n2!==1 || !closable(ci2) || protectedCell(ci2) || inCrowd(ci2) || trafficAt(ci2)>P.trample*0.5) break; n++; } return n; };
+      const n1=run(fx,fy), n2=run(-fx,-fy);
+      if(n1+n2>=2) rectFill(x-fx*n2, y-fy*n2, x+fx*(n1+1), y+fy*(n1+1), SOLID, a, false);
+    }
+    else if(ns===0 && rnd()<g.burstP*(1+excess*4+(blob?6:0))) masonBlock(a, excess);
+    if(ns===0){ let bd=1e9, bh=a.h; for(const [dx,dy] of DIRS){ const n=ray(x,y,dx,dy,isOpen,12); if(n<bd){ bd=n; bh=Math.atan2(dy,dx); } } if(bd<12 && rnd()<P.precedent) a.h=bh; }
+    else if(!corner){ const [dx,dy]=dirOf(a.h); if((l||r)&&dx!==0) a.h=rnd()<0.5?Math.PI/2:-Math.PI/2; if((u||d)&&dy!==0) a.h=rnd()<0.5?0:Math.PI; }
+  } else if(cells[ci]===TUNNEL){
+    if(ns>=3 && closable(ci)){ setCell(ci,SOLID,K_MASON,a); a.score+=1; }
+  } else if(!isOpen(cells[ci])){
+    let bd=1e9, bh=a.h; for(const [dx,dy] of DIRS){ const n=ray(x,y,dx,dy,v=>!isOpen(v),16); if(n<bd){ bd=n; bh=Math.atan2(dy,dx); } }
+    a.h = bd<16 ? bh : snapHeading(a.h+(rnd()<0.5?1:-1)*Math.PI/2);
+  }
+}
+
+// ---------- program: the planner ----------
+function frameAt(ox,oy,dx,dy){
+  const px=-dy, py=dx;
+  const atv=(u,v)=>at(ox+dx*u+px*v, oy+dy*u+py*v);
+  return { at:atv,
+    solid(u0,u1,v0,v1){ for(let u=u0;u<=u1;u++)for(let v=v0;v<=v1;v++){ const i=atv(u,v); if(i<0||cells[i]!==SOLID) return false; } return true; },
+    set(u0,u1,v0,v1,val,k){ for(let u=u0;u<=u1;u++)for(let v=v0;v<=v1;v++){ const i=atv(u,v); if(i>=0) setCell(i,val,k,null); } } };
+}
+// program shapes: 0 rect, 1 ellipse, 2 octagon, 3 apse (rect with a rounded far end)
+function pickShape(){ if(rnd()>=P.shapes) return 0; const r=rnd(); return r<0.45?1:r<0.75?2:3; }
+function inShape(shape,u,u0,u1,v,v0,v1){
+  const cu=(u0+u1)/2, cv=(v0+v1)/2, a=(u1-u0)/2+0.5, b=(v1-v0)/2+0.5, du=u-cu, dv=v-cv;
+  if(shape===1) return (du*du)/(a*a)+(dv*dv)/(b*b)<=1;
+  if(shape===2) return Math.abs(du)/a+Math.abs(dv)/b<=1.45;
+  if(shape===3){ if(u<=u1-b) return true; const eu=u-(u1-b); return eu*eu+dv*dv<=b*b; }
+  return true;
+}
+// a column, or a two-by-two pier
+function column(i,k,bigOK){ if(i<0||cells[i]!==INTERIOR) return; setCell(i,COLUMN,k,null);
+  if(bigOK && rnd()<P.piers){ const x=i%W, y=(i/W)|0; for(const [dx,dy] of [[1,0],[0,1],[1,1]]){ const j=at(x+dx,y+dy); if(j>=0&&cells[j]===INTERIOR) setCell(j,COLUMN,k,null); } } }
+function dim(v){ v=Math.round(v); return (P.module>1 && rnd()<P.pull) ? Math.max(P.module, Math.round(v/P.module)*P.module) : v; }
+const DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
+function doorFrom(idx){ const x=idx%W, y=(idx/W)|0, o=(rnd()*4)|0;
+  for(let k=0;k<4;k++){ const [dx,dy]=DIRS[(k+o)%4]; const i=at(x+dx,y+dy); if(i>=0&&cells[i]===SOLID) return [wrapX(x+dx),wrapY(y+dy),dx,dy]; } return null; }
+function placeHall(){
+  const idx=randomCell(STREET); if(idx<0) return false; const d=doorFrom(idx); if(!d) return false; const F=frameAt(...d);
+  let w=clamp(dim(3+rnd()*(P.hallMax-3)),3,P.hallMax), L=clamp(dim(w*(1.3+rnd()*1.2)),w,P.hallMax+4), half, v0, v1;
+  for(;;){ half=Math.floor(w/2); v0=-half; v1=w-half-1; if(F.solid(0,L+1,v0-1,v1+1)) break; if(L>w+1) L--; else if(w>3){ w--; L=Math.max(L-1,w); } else return false; }
+  const shape=w>=5?pickShape():0; F.set(0,0,0,0,INTERIOR,K_HALL);
+  for(let u=1;u<=L;u++)for(let v=v0;v<=v1;v++) if(inShape(shape,u,1,L,v,v0,v1)) setCell(F.at(u,v),INTERIOR,K_HALL,null);
+  const big=w>=7, step=big&&rnd()<P.piers?3:2;
+  if(w>=5 && rnd()<P.ornament) for(let u=2;u<=L-1;u+=step){ column(F.at(u,v0+1),K_HALL,big&&v1-v0>=6); column(F.at(u,v1-1),K_HALL,false); }
+  if(shape===0 && rnd()<0.6 && F.solid(L+1,L+3,v0,v1)) F.set(L+1,L+2,v0+1,v1-1,INTERIOR,K_HALL);
+  return true;
+}
+function placeCourt(){
+  const idx=randomCell(STREET); if(idx<0) return false; const d=doorFrom(idx); if(!d) return false; const F=frameAt(...d);
+  let s=clamp(dim(4+rnd()*4),4,P.hallMax), half, v0, v1;
+  for(;;){ half=Math.floor(s/2); v0=-half; v1=s-half-1; if(F.solid(0,s+1,v0-1,v1+1)) break; if(s>4) s--; else return false; }
+  const shape=s>=6?pickShape():0; F.set(0,0,0,0,INTERIOR,K_COURT);
+  for(let u=1;u<=s;u++)for(let v=v0;v<=v1;v++) if(inShape(shape,u,1,s,v,v0,v1)) setCell(F.at(u,v),INTERIOR,K_COURT,null);
+  if(s>=5 && rnd()<P.ornament){
+    if(shape===1){ const cu=(1+s)/2, cv=(v0+v1)/2, r=(s-1)/2-1.2, n=Math.max(6,Math.round(2*Math.PI*r/2.5));   // a ring of columns
+      for(let q=0;q<n;q++){ const t=q/n*2*Math.PI; column(F.at(Math.round(cu+r*Math.cos(t)),Math.round(cv+r*Math.sin(t))),K_COURT,false); } }
+    else { const step=s>=8&&rnd()<P.piers?3:2;
+      for(let v=v0+1;v<=v1-1;v+=step){ column(F.at(2,v),K_COURT,false); column(F.at(s-1,v),K_COURT,false); }
+      for(let u=2;u<=s-1;u+=step){ column(F.at(u,v0+1),K_COURT,false); column(F.at(u,v1-1),K_COURT,false); } } }
+  return true;
+}
+function placePiazza(){
+  const idx=randomCell(STREET); if(idx<0) return false; const x=idx%W, y=(idx/W)|0;
+  const e=ray(x,y,1,0,isOpen,30), wv=ray(x,y,-1,0,isOpen,30), s=ray(x,y,0,1,isOpen,30), n=ray(x,y,0,-1,isOpen,30);
+  if(Math.min(e,wv)<2 || Math.min(s,n)<2) return false;
+  const wA=1+ray(x+2,y,0,1,isOpen,8)+ray(x+2,y,0,-1,isOpen,8), wB=1+ray(x,y+2,1,0,isOpen,8)+ray(x,y+2,-1,0,isOpen,8);
+  const wmax=Math.min(8,Math.max(wA,wB));
+  const sx=rnd()<0.5?1:-1, sy=rnd()<0.5?1:-1, ex=x+sx*((sx>0?e:wv)+1), ey=y+sy*((sy>0?s:n)+1);
+  let pw=clamp(dim(wmax*(1.5+rnd()*2)),3,W/12|0), ph=clamp(dim(wmax*(1.5+rnd()*2)),3,H/12|0);
+  const atv=(u,v)=>at(ex+sx*u, ey+sy*v);
+  const fits=()=>{ for(let u=0;u<=pw;u++)for(let v=0;v<=ph;v++){ const i=atv(u,v); if(i<0||cells[i]!==SOLID) return false; } return true; };
+  while(!fits()){ if(pw>=ph && pw>3) pw--; else if(ph>3) ph--; else return false; }
+  const shape=Math.min(pw,ph)>=6?pickShape():0;
+  for(let u=0;u<pw;u++)for(let v=0;v<ph;v++) if(inShape(shape,u,0,pw-1,v,0,ph-1)) setCell(atv(u,v),INTERIOR,K_PIAZZA,null);
+  const big=Math.min(pw,ph)>=8, step=big&&rnd()<P.piers?3:2;
+  if(shape===0 && pw>=4 && rnd()<P.ornament){ const u=pw-2; for(let v=1;v<ph-1;v+=step) column(atv(u,v),K_PIAZZA,big); }
+  if(shape===0 && ph>=4 && rnd()<P.ornament*0.6){ const v=ph-2; for(let u=1;u<pw-2;u+=step) column(atv(u,v),K_PIAZZA,big); }
+  if(shape===1 && rnd()<P.ornament){ const cu=(pw-1)/2, cv=(ph-1)/2, ra=cu-1.2, rb=cv-1.2, n=Math.max(6,Math.round(Math.PI*(ra+rb)/2.5));
+    for(let q=0;q<n;q++){ const t=q/n*2*Math.PI; column(atv(Math.round(cu+ra*Math.cos(t)),Math.round(cv+rb*Math.sin(t))),K_PIAZZA,false); } }
+  return true;
+}
+function placeArcade(){
+  let x=0,y=0,hx=0,hy=0,found=false;
+  for(let t=0;t<40&&!found;t++){ const idx=randomCell(STREET); if(idx<0) return false; x=idx%W; y=(idx/W)|0;
+    hx=ray(x,y,1,0,isOpen,40)+ray(x,y,-1,0,isOpen,40)+1; hy=ray(x,y,0,1,isOpen,40)+ray(x,y,0,-1,isOpen,40)+1;
+    if(Math.min(hx,hy)>=3 && Math.max(hx,hy)>=8) found=true; }
+  if(!found) return false;
+  const [dx,dy] = hx>=hy ? [1,0] : [0,1], sg=rnd()<0.5?1:-1, px=-dy*sg, py=dx*sg;
+  const v=ray(x,y,px,py,isOpen,20), ex=x+px*(v+1), ey=y+py*(v+1); const ei=at(ex,ey); if(ei<0||cells[ei]!==SOLID) return false;
+  const okAt=u=>{ const cx=ex+dx*u, cy=ey+dy*u, i0=at(cx,cy), i1=at(cx+px,cy+py), i2=at(cx+2*px,cy+2*py), is=at(cx-px,cy-py);
+    return i0>=0&&i1>=0&&i2>=0&&is>=0&&cells[i0]===SOLID&&cells[i1]===SOLID&&cells[i2]===SOLID&&isOpen(cells[is]); };
+  let u0=0,u1=0; while(u0>-20&&okAt(u0-1)) u0--; while(u1<20&&okAt(u1+1)) u1++;
+  if(!okAt(0) || u1-u0+1<5) return false;
+  for(let u=u0;u<=u1;u++){ const cx=ex+dx*u, cy=ey+dy*u;
+    setCell(at(cx+px,cy+py),INTERIOR,K_ARCADE,null);
+    setCell(at(cx,cy), (rnd()<P.ornament && (u-u0)%2===0) ? COLUMN : INTERIOR, K_ARCADE, null); }
+  return true;
+}
+function placeProgram(){
+  if(interiorCells > cells.length*P.keep/100) return;
+  const r=rnd(), f = r<0.2?placePiazza : r<0.5?placeHall : r<0.75?placeCourt : placeArcade;
+  for(let t=0;t<12;t++) if(f()){ programs++; return; }
+}
+
+// ---------- routes ----------
+function stepCost(i){ const v=cells[i]; if(v===SOLID) return Infinity; if(v===COLUMN) return 7; return 1 + P.widePref/(1+openness[i]); }
+function heuristic(i,t){ const dx=Math.abs(delta(t%W,i%W,W)), dy=Math.abs(delta((t/W)|0,(i/W)|0,H)); return dx+dy; }
+let pathGen=0, seen;
+function findPath(s,t,maxExpand){
+  if(!seen||seen.length!==cells.length) seen=new Int32Array(cells.length);
+  const gen=++pathGen, HW=3;                  // weighted A*: fast, slightly greedy routes are fine for desire paths
+  let hn=0;
+  const push=(v,n)=>{ let k=hn++; while(k>0){ const p=(k-1)>>1; if(heapV[p]<=v) break; heapV[k]=heapV[p]; heapN[k]=heapN[p]; k=p; } heapV[k]=v; heapN[k]=n; };
+  const pop=()=>{ const n=heapN[0]; hn--; if(hn>0){ const v=heapV[hn], m=heapN[hn]; let k=0; for(;;){ let l=2*k+1; if(l>=hn) break; const r=l+1; if(r<hn&&heapV[r]<heapV[l]) l=r; if(heapV[l]>=v) break; heapV[k]=heapV[l]; heapN[k]=heapN[l]; k=l; } heapV[k]=v; heapN[k]=m; } return n; };
+  seen[s]=gen; gcost[s]=0; came[s]=-1; push(heuristic(s,t)*HW,s); let expanded=0;
+  while(hn>0){
+    const i=pop(); if(i===t) break; if(++expanded>maxExpand) return null;
+    const gi=gcost[i];
+    for(let k=0;k<4;k++){ const j=nb(i,k); if(j<0) continue; const ng=gi+stepCost(j); if(ng===Infinity) continue;
+      if(seen[j]!==gen || ng<gcost[j]){ seen[j]=gen; gcost[j]=ng; came[j]=i; push(ng+heuristic(j,t)*HW,j); } }
+  }
+  if(seen[t]!==gen) return null;
+  const path=[]; for(let i=t;i!==-1;i=came[i]) path.push(i); path.reverse(); return path;
+}
+// a gently curved route between two cells: a quadratic bezier rasterised into 4-connected cells
+function curvedPath(a,b,bulge){
+  const ax=a%W, ay=(a/W)|0, dx=delta(b%W,ax,W), dy=delta((b/W)|0,ay,H), L=Math.hypot(dx,dy);
+  const cx=ax+dx/2-dy*bulge, cy=ay+dy/2+dx*bulge, path=[]; let lx=ax, ly=ay; path.push(at(ax,ay));
+  const n=Math.ceil(L*3);
+  for(let s=1;s<=n;s++){ const t=s/n, u=1-t; const x=Math.floor(u*u*ax+2*u*t*cx+t*t*(ax+dx)), y=Math.floor(u*u*ay+2*u*t*cy+t*t*(ay+dy));
+    if(x===lx&&y===ly) continue;
+    if(x!==lx&&y!==ly){ path.push(at(lx,y)); }   // keep it 4-connected
+    path.push(at(x,y)); lx=x; ly=y; }
+  return path;
+}
+// ---------- crowds ----------
+const ON={carver:true, mason:true, linker:true, wander:true, fencer:true, vendor:true, program:true, crowd:true};
+let crowdPhase=false, phaseStart=0, crowd=null, footfalls=0, widened=0, savedOn=null;
+// where the crowd is right now, on a coarse grid: builders keep out of these blocks
+const OCC=8; let occ=null, occW=0;
+function occIndex(i){ return ((i/W|0)/OCC|0)*occW + ((i%W)/OCC|0); }
+function inCrowd(i){ return ON.crowd && crowd!==null && occ[occIndex(i)]>0; }
+function makeCrowd(n){
+  crowd={ n, x:new Int32Array(n), y:new Int32Array(n), dir:new Int8Array(n), role:new Uint8Array(n), state:new Uint8Array(n), rest:new Int16Array(n),
+          org:new Uint16Array(n), t:new Int16Array(n), path:new Array(n).fill(null), pi:new Int32Array(n), stuck:new Uint8Array(n),
+          home:new Int32Array(n), sq:new Int32Array(n), dirn:new Int8Array(n), pdir:new Int8Array(n), route:new Array(n).fill(null) };
+  for(let k=0;k<n;k++) placeParticle(k);
+}
+// homecoming mode: a home in the tight grain, one per stratum of a grid so homes spread evenly
+function pickHome(k){
+  const c=crowd, G=Math.max(1,Math.ceil(Math.sqrt(c.n))), s=k%(G*G), gx=s%G, gy=(s/G)|0;
+  const x0=Math.floor(gx*W/G), y0=Math.floor(gy*H/G), gw=Math.ceil(W/G), gh=Math.ceil(H/G);
+  let best=-1, bo=99;
+  for(let t=0;t<40;t++){ const i=at(x0+((rnd()*gw)|0), y0+((rnd()*gh)|0)); if(i<0||!isOpen(cells[i])||square[i]) continue; if(openness[i]<bo){ bo=openness[i]; best=i; if(bo<=1) break; } }
+  return best>=0?best:randomCell();
+}
+function nearestSquare(i){ let best=-1, bd=1e9; for(const q of squares){ const d=heuristic(i,q.seed)+(q.blob?W/4:0); if(d<bd){ bd=d; best=q.seed; } } return best; }
+function placeParticle(k){
+  const c=crowd; let i=-1;
+  if(P.crowdMode===1){ const h=pickHome(k); if(h>=0){ c.home[k]=h; c.x[k]=h%W; c.y[k]=(h/W)|0; c.role[k]=0; c.state[k]=0; c.rest[k]=P.linger*rnd()*2; c.dirn[k]=1; c.path[k]=null; c.route[k]=null; c.dir[k]=-1; c.org[k]=0; return; } }
+  if(squares.length){ const q=squares[(rnd()*squares.length)|0]; i=q.cells[(rnd()*q.cells.length)|0]; }
+  else i=randomCell();
+  if(i<0) i=0;
+  c.x[k]=i%W; c.y[k]=(i/W)|0; c.role[k]=rnd()*100<P.leaders?1:0; c.state[k]=0; c.rest[k]=P.linger*rnd(); c.dir[k]=-1; c.path[k]=null; c.pi[k]=-1; c.org[k]=square[i];
+}
+function leaderRoute(i, org){
+  const opts=squares.filter(q=>q.id!==org);
+  if(!opts.length){ for(let t=0;t<30;t++){ const c=randomCell(); if(c>=0&&heuristic(i,c)>=W/4) return findPath(i,c,40000); } return null; }
+  const tgt=opts[(rnd()*opts.length)|0], from=squares.find(q=>q.id===org);
+  if(!from) return findPath(i, tgt.seed, 40000);
+  const key=from.id+'>'+tgt.id; let r=routes.get(key);
+  if(!r){ const p=findPath(from.seed, tgt.seed, 40000); if(!p) return null; r={path:p}; routes.set(key,r); }
+  return r.path;
+}
+// a follower picks a leader who is under way from the same space and takes its route
+function followLeader(k){
+  const c=crowd, org=c.org[k]; let any=-1;
+  for(let t=0;t<40;t++){ const m=(rnd()*c.n)|0; if(!c.role[m]||c.state[m]!==1||!c.path[m]) continue;
+    if(c.org[m]===org && c.pi[m]<c.path[m].length*0.5) return c.path[m]; if(any<0) any=m; }
+  return null;
+}
+function dirBetween(i,j){ const dx=delta(j%W,i%W,W), dy=delta((j/W)|0,(i/W)|0,H); return dx<0?0:dx>0?1:dy<0?2:3; }
+function moveTo(k,j,d){ crowd.x[k]=j%W; crowd.y[k]=(j/W)|0; crowd.dir[k]=d; }
+function arrive(k,i){ const c=crowd; c.state[k]=0; c.rest[k]=P.linger*(0.5+rnd()); c.path[k]=null; c.pi[k]=-1; c.dir[k]=-1; c.org[k]=square[i]; footfalls++; }
+// footfall, and wear: the crowd widens where traffic has built up, only ever into building beside an open cell
+function tramp(i,d,w,wear){
+  if(cells[i]===COLUMN){ setCell(i,STREET,K_TRAIL,null); widened++; }
+  traffic[i]+=w;
+  if(square[i] || openness[i]>=CORE-1) return;     // wear only the routes between spaces, and never so wide that a route becomes a square
+  const level=Math.min(P.maxTrail-1, Math.floor(traffic[i]/P.trample));
+  if(level<=0 || rnd()>wear*0.3) return;
+  const x=i%W, y=(i/W)|0, px=d<2?0:1, py=d<2?1:0;
+  for(const sg of [1,-1]){ const n=Math.ceil(level/2)-(sg<0&&level%2===1?1:0);
+    for(let k=1;k<=n;k++){ const j=at(x+px*k*sg,y+py*k*sg); if(j<0) break;
+      if(cells[j]===SOLID){ setCell(j,STREET,K_TRAIL,null); widened++; traffic[j]+=w*0.5; break; }
+      if(!isOpen(cells[j])) break; } }
+}
+let routeBudget=0;
+// homecoming: home → nearest big space → home, on a route that is planned once and walked both ways
+function homeStep(k,i,wear){
+  const c=crowd;
+  if(c.state[k]===0){
+    if(--c.rest[k]>0){ if(c.dirn[k]<0 && rnd()<0.3){ const d=(rnd()*4)|0, j=nb(i,d); if(j>=0&&isOpen(cells[j])&&square[j]===square[i]) moveTo(k,j,d); } return; }
+    if(c.dirn[k]>0 && !isOpen(cells[c.home[k]])){ const h=pickHome(k); if(h>=0){ c.home[k]=h; c.route[k]=null; } }
+    if(c.route[k] && (c.dirn[k]>0 ? heuristic(i,c.route[k][0])<=12 : heuristic(i,c.route[k][c.route[k].length-1])<=12)){
+      c.path[k]=c.route[k]; c.pdir[k]=c.dirn[k]; c.pi[k]=c.dirn[k]>0?0:c.route[k].length-1; }
+    else {
+      if(routeBudget<=0){ c.rest[k]=8; return; } routeBudget--;
+      const dest = c.dirn[k]>0 ? nearestSquare(i) : c.home[k]; if(dest<0){ c.rest[k]=60; return; }
+      const p=findPath(i,dest,40000); if(!p){ c.rest[k]=60; return; }
+      c.path[k]=p; c.pdir[k]=1; c.pi[k]=0; if(c.dirn[k]>0 && i===c.home[k]) c.route[k]=p;
+    }
+    c.state[k]=1; c.stuck[k]=0; c.t[k]=0; return;
+  }
+  c.t[k]++;
+  const p=c.path[k]; let tgt=p[c.pi[k]];
+  while(tgt!==undefined && tgt===i){ c.pi[k]+=c.pdir[k]; tgt=p[c.pi[k]]; }
+  if(tgt===undefined || c.t[k]>2000){                        // arrived
+    c.path[k]=null; c.state[k]=0;
+    if(c.dirn[k]>0){ c.rest[k]=P.linger*(0.5+rnd()); c.dirn[k]=-1; footfalls++; } else { c.rest[k]=P.linger*2*(0.5+rnd()); c.dirn[k]=1; if(rnd()<0.3) c.route[k]=null; }   // now and then re-plan: the nearest square may have changed
+    return;
+  }
+  if(!isOpen(cells[tgt])&&cells[tgt]!==COLUMN){ c.path[k]=null; c.route[k]=null; c.state[k]=0; c.rest[k]=3; return; }   // blocked: re-plan
+  let j=-1, d=-1, bd=1e9;
+  for(let q=0;q<4;q++){ const m=nb(i,q); if(m<0||(!isOpen(cells[m])&&cells[m]!==COLUMN)) continue; const dd=heuristic(m,tgt); if(dd<bd){ bd=dd; j=m; d=q; } }
+  if(bd>=heuristic(i,tgt)){ if(++c.stuck[k]>25){ c.path[k]=null; c.route[k]=null; c.state[k]=0; c.rest[k]=3; } return; }
+  c.stuck[k]=0; moveTo(k,j,d); tramp(j,d,1,wear);
+}
+const WS=new Float64Array(4);
+function crowdStep(){
+  const c=crowd; if(!c) return; const wear=clamp(1-6*(frac-P.target/100),0,1);
+  occW=Math.ceil(W/OCC); if(!occ||occ.length!==occW*Math.ceil(H/OCC)) occ=new Uint16Array(occW*Math.ceil(H/OCC)); else occ.fill(0);
+  for(let k=0;k<c.n;k++) occ[occIndex(c.y[k]*W+c.x[k])]++;
+  const stride=Math.max(1,Math.round(1/P.crowdRate)), phase=tick%stride; routeBudget=Math.max(2,Math.round(c.n/250));
+  for(let k=phase;k<c.n;k+=stride){
+    const i=at(c.x[k],c.y[k]);
+    if(!isOpen(cells[i])){ placeParticle(k); continue; }
+    if(P.crowdMode===1){ homeStep(k,i,wear); continue; }
+    if(c.state[k]===0){                       // lingering in a square
+      if(--c.rest[k]>0){ if(rnd()<0.3){ const d=(rnd()*4)|0, j=nb(i,d); if(j>=0&&isOpen(cells[j])&&(square[j]===square[i]||!protectedCell(i))) moveTo(k,j,d); } continue; }
+      c.org[k]=square[i]; c.t[k]=0; c.stuck[k]=0; c.pi[k]=0;
+      if(c.role[k]===1){ c.path[k]=leaderRoute(i, c.org[k]); c.state[k]=1; }
+      else {                                   // followers join a leader setting out from the same space
+        c.path[k]=followLeader(k); if(c.path[k]){ c.state[k]=1; } else c.rest[k]=20+rnd()*40;
+      }
+      continue;
+    }
+    c.t[k]++;
+    let j=-1, d=-1;
+    if(c.path[k]){                             // on a route: head for the next route cell, with some jostle
+      const p=c.path[k]; let tgt=p[c.pi[k]];
+      while(tgt!==undefined && tgt===i){ c.pi[k]++; tgt=p[c.pi[k]]; }
+      if(tgt===undefined){ arrive(k,i); continue; }
+      if(!isOpen(cells[tgt])&&cells[tgt]!==COLUMN){ if(c.role[k]) c.path[k]=null; else c.pi[k]++; }
+      else if(!c.role[k] && rnd()<0.2){ const q=(rnd()*4)|0, m=nb(i,q); if(m>=0&&isOpen(cells[m])&&heuristic(m,tgt)<=6){ j=m; d=q; } }
+      else { let bd=1e9; for(let q=0;q<4;q++){ const m=nb(i,q); if(m<0||(!isOpen(cells[m])&&cells[m]!==COLUMN)) continue; const dd=heuristic(m,tgt); if(dd<bd){ bd=dd; j=m; d=q; } }
+        if(bd>=heuristic(i,tgt)){ j=-1; if(++c.stuck[k]>25){ c.stuck[k]=0; if(c.role[k]) c.path[k]=null; else c.pi[k]+=5; } } else c.stuck[k]=0; }
+    }
+    if(j<0 && !c.path[k]){                     // no route: drift toward footfall and open ground, keeping a heading
+      let tot=0; const ws=WS, cd=c.dir[k]; ws[0]=ws[1]=ws[2]=ws[3]=0;
+      for(let q=0;q<4;q++){ const m=nb(i,q); if(m<0||(!isOpen(cells[m])&&cells[m]!==COLUMN)) continue;
+        const tr=0.2+traffic[m]; let w=tr*tr*(1+0.3*openness[m]); if(cd>=0){ if(q===cd) w*=2.5; else if(q===(cd^1)) w*=0.15; }
+        ws[q]=w; tot+=w; }
+      if(tot>0){ let r=rnd()*tot; for(let q=0;q<4;q++){ r-=ws[q]; if(r<=0){ j=nb(i,q); d=q; break; } } }
+    }
+    if(j>=0){ moveTo(k,j,d); tramp(j,d,c.role[k]?1:0.5,wear);
+      if(square[j] && square[j]!==c.org[k] && c.t[k]>10) arrive(k,j); }
+    if(c.t[k]>1500) arrive(k,i);
+  }
+}
+function syncClassUI(){ for(const inp of document.querySelectorAll('#classes input')) inp.checked=ON[inp.dataset.on]; }
+function setPhase(on){
+  crowdPhase=on; phaseStart=tick;
+  const b=document.getElementById('crowdBtn'); b.classList.toggle('on',on);
+  if(on){ savedOn={...ON}; for(const k in ON) ON[k]=false; ON.crowd=true; }
+  else if(savedOn){ Object.assign(ON,savedOn); savedOn=null; }
+  syncClassUI();
+}
+
+// ---------- specialists ----------
+function bigOpenCell(minR){
+  for(let t=0;t<60;t++){ const idx=(rnd()*W*H)|0; if(!isOpen(cells[idx])) continue; const x=idx%W, y=(idx/W)|0;
+    if(ray(x,y,1,0,isOpen,minR)>=minR && ray(x,y,-1,0,isOpen,minR)>=minR && ray(x,y,0,1,isOpen,minR)>=minR && ray(x,y,0,-1,isOpen,minR)>=minR) return idx; }
+  return -1;
+}
+const sgn = v => v>0?1:v<0?-1:0;
+function linkerStep(a,pDig){
+  if(a.tx<0){
+    if(rnd()>pDig) return;
+    const th=2+Math.round(a.g.ortho*2), A=bigOpenCell(th), B=bigOpenCell(th); if(A<0||B<0) return;
+    const ax=A%W, ay=(A/W)|0, bx=B%W, by=(B/W)|0, dx=delta(bx,ax,W), dy=delta(by,ay,H), d=Math.abs(dx)+Math.abs(dy);
+    if(d<8||d>P.reach) return;
+    const mi=at(ax+dx/2, ay+dy/2); if(mi<0||cells[mi]!==SOLID) return;
+    a.x=ax+0.5; a.y=ay+0.5; a.tx=bx; a.ty=by; a.axis=(a.g.wobble<0.3)===(Math.abs(dx)>=Math.abs(dy))?0:1; a.run=0; a.len=P.bends;
+    if(rnd()<P.arc){ a.path=curvedPath(A,B,(rnd()<0.5?1:-1)*(0.15+rnd()*0.35)*Math.min(1,P.arcR/Math.max(1,d))); a.pi=0; }
+    return;
+  }
+  if(a.path){ // curved tunnel
+    const i=a.path[a.pi]; a.x=(i%W)+0.5; a.y=((i/W)|0)+0.5;
+    if(cells[i]===SOLID){ setCell(i,TUNNEL,K_TUNNEL,a); a.score+=0.2; }
+    if(++a.pi>=a.path.length){ a.path=null; a.tx=-1; a.score+=6; links++; }
+    return;
+  }
+  const dx=delta(a.tx,a.x|0,W), dy=delta(a.ty,a.y|0,H);
+  if(!dx&&!dy){ a.score+=6; links++; a.tx=-1; return; }
+  if(++a.run>P.reach*3){ a.tx=-1; return; }
+  if((a.axis===0&&!dx)||(a.axis===1&&!dy)) a.axis=1-a.axis;
+  else if(a.len>0 && rnd()<a.len/(Math.abs(dx)+Math.abs(dy)+1)){ a.axis=1-a.axis; a.len--; }
+  if(a.axis===0&&!dx) a.axis=1; if(a.axis===1&&!dy) a.axis=0;
+  if(a.axis===0) a.x+=sgn(dx); else a.y+=sgn(dy);
+  wrapAgent(a);
+  a.h = a.axis===0 ? (dx>0?0:Math.PI) : (dy>0?Math.PI/2:-Math.PI/2);
+  const i=at(a.x,a.y); if(i>=0&&cells[i]===SOLID){ setCell(i,TUNNEL,K_TUNNEL,a); a.score+=0.2; }
+}
+function wandererStep(a,pDig){
+  if(!a.active){
+    if(rnd()>pDig || hallCells > cells.length*P.keep/400) return;
+    let best=-1, bd=0;
+    for(let t=0;t<12;t++){ const idx=(rnd()*W*H)|0; if(cells[idx]!==SOLID) continue; const x=idx%W, y=(idx/W)|0;
+      const d=Math.min(ray(x,y,1,0,isSolidCell,20),ray(x,y,-1,0,isSolidCell,20),ray(x,y,0,1,isSolidCell,20),ray(x,y,0,-1,isSolidCell,20));
+      if(d>bd){ bd=d; best=idx; } }
+    if(bd<3) return;
+    const x=best%W, y=(best/W)|0; let bestDir=null, bn=1e9;
+    for(const [dx,dy] of DIRS){ const n=ray(x,y,dx,dy,isSolidCell,W); const ei=at(x+dx*(n+1),y+dy*(n+1)); if(ei<0||!isOpen(cells[ei])) continue; if(n<bn){ bn=n; bestDir=[dx,dy]; } }
+    if(!bestDir) return;
+    const [dx,dy]=bestDir; a.x=x+dx*bn+0.5; a.y=y+dy*bn+0.5; wrapAgent(a); a.h=Math.atan2(-dy,-dx);
+    a.run=0; a.active=true; a.stride=Math.max(3,Math.round(P.stride*(0.7+a.g.turnP*2.4))); a.len=P.hallLen*(0.5+rnd()); a.turnSign=rnd()<0.5?1:-1;
+    a.arcK = rnd()<P.arc ? (rnd()<0.5?1:-1)/Math.max(4,P.arcR*(0.5+rnd())) : 0;
+    setCell(at(a.x,a.y),HALL,K_HALLWAY,a); return;
+  }
+  a.run++;
+  if(a.arcK){ // curved hallway: continuous heading, 4-connected carving
+    a.h+=a.arcK; const fx=a.x+Math.cos(a.h), fy=a.y+Math.sin(a.h), nx=Math.floor(fx), ny=Math.floor(fy), ox=a.x|0, oy=a.y|0;
+    const cellsToDo = (nx!==ox&&ny!==oy) ? [at(ox,ny), at(nx,ny)] : [at(nx,ny)];
+    for(const ni of cellsToDo){ if(ni<0){ a.active=false; return; }
+      if(cells[ni]!==SOLID){ if(isOpen(cells[ni])) a.score+=3; a.active=false; halls++; return; }
+      setCell(ni,HALL,K_HALLWAY,a); }
+    a.x=fx; a.y=fy; wrapAgent(a);
+    if(a.run>a.len){ a.active=false; halls++; } return;
+  }
+  const [dx,dy]=dirOf(a.h), nx=(a.x|0)+dx, ny=(a.y|0)+dy, ni=at(nx,ny);
+  if(ni<0){ a.active=false; return; }
+  if(cells[ni]!==SOLID){ if(isOpen(cells[ni])) a.score+=3; a.active=false; halls++; return; }
+  a.x=nx+0.5; a.y=ny+0.5; wrapAgent(a); setCell(ni,HALL,K_HALLWAY,a);
+  if(a.g.width>2.5){ const si=at(nx-dy,ny+dx); if(si>=0&&cells[si]===SOLID) setCell(si,HALL,K_HALLWAY,a); }
+  if(Math.min(ray(nx,ny,1,0,isSolidCell,3),ray(nx,ny,-1,0,isSolidCell,3),ray(nx,ny,0,1,isSolidCell,3),ray(nx,ny,0,-1,isSolidCell,3))>=2) a.score+=1;
+  if(a.run%a.stride===0){
+    let s=rnd()<a.g.ortho?(a.turnSign*=-1):(rnd()<0.5?1:-1);
+    for(let k=0;k<2;k++){ const h2=snapHeading(a.h+s*Math.PI/2), [tx,ty]=dirOf(h2), ci=at(nx+tx,ny+ty); if(ci>=0&&cells[ci]===SOLID){ a.h=h2; break; } s=-s; }
+  }
+  if(a.run>a.len){ a.active=false; halls++; }
+}
+function isPublicSpace(i,dx,dy,px,py){ if(i<0) return false; const v=cells[i]; if(v===INTERIOR) return true;
+  if(v!==STREET) return false; const x=i%W, y=(i/W)|0;
+  return ray(x,y,px,py,isOpen,5)>=4 && ray(x,y,dx,dy,isOpen,30)+ray(x,y,-dx,-dy,isOpen,30)<30; }
+// fence patterns: what goes at position k along a fence (null = gap)
+function fenceVal(pat,k,gate){
+  if(k%gate<2 && k>0) return null;                     // gates in every pattern
+  switch(pat){ case 0: return SOLID;                    // wall
+    case 1: return k%2===0?COLUMN:null;                 // colonnade
+    case 2: return k%3===0?COLUMN:null;                 // wide colonnade
+    case 3: { const m=k%5; return m<2?SOLID:m===3?COLUMN:null; }   // hatched screen: wall, gap, column, gap
+    default: return k%3<2?SOLID:null; }                 // piers: two on, one off
+}
+// line a crowd route: fences hug the edge of a trafficked band, on both sides
+function fenceRoute(a){
+  const thr=P.trample*1.5; let best=-1, bt=thr;
+  for(let t=0;t<30;t++){ const idx=randomCell(); if(idx>=0&&traffic[idx]>bt){ bt=traffic[idx]; best=idx; } }
+  if(best<0) return false;
+  const x=best%W, y=(best/W)|0, tx=traffic[at(x+1,y)]+traffic[at(x-1,y)], ty=traffic[at(x,y+1)]+traffic[at(x,y-1)];
+  const [dx,dy] = tx>=ty ? [1,0] : [0,1], low=P.trample*0.4, gate=Math.max(3,Math.round(P.gate*(0.7+a.g.turnP*2))), pat=Math.min(4,Math.floor(a.g.ortho*5));
+  let placed=0;
+  for(const sg of [1,-1]){
+    const px=-dy*sg, py=dx*sg; let k=1;
+    while(k<10){ const i=at(x+px*k,y+py*k); if(i<0||!isOpen(cells[i])) { k=-1; break; } if(traffic[i]<low) break; k++; }
+    if(k<1||k>=10) continue;
+    const ok=u=>{ const cx=x+dx*u+px*k, cy=y+dy*u+py*k, i=at(cx,cy), r=at(cx-px,cy-py);
+      return i>=0&&cells[i]===STREET&&traffic[i]<low&&!protectedCell(i)&&r>=0&&isOpen(cells[r])&&traffic[r]>=low*0.5; };
+    let u0=0,u1=0; while(u0>-40&&ok(u0-1)) u0--; while(u1<40&&ok(u1+1)) u1++;
+    if(!ok(0)||u1-u0+1<6) continue;
+    for(let u=u0;u<=u1;u++){ const v=fenceVal(pat,u-u0,gate); if(v===null) continue; const i=at(x+dx*u+px*k,y+dy*u+py*k); if(!closable(i)) continue; setCell(i,v,K_FENCE,a); placed++; }
+  }
+  if(placed){ a.score+=placed; fences++; return true; }
+  return false;
+}
+function fencerStep(a,pFill){
+  if(++a.run<120 || rnd()>pFill) return; a.run=0;
+  if(rnd()<0.6 && fenceRoute(a)) return;
+  for(let t=0;t<30;t++){
+    const idx=randomCell(STREET); if(idx<0) return; const x=idx%W, y=(idx/W)|0;
+    for(const [dx,dy] of [[1,0],[0,1]]){
+      const along=ray(x,y,dx,dy,isOpen,40)+ray(x,y,-dx,-dy,isOpen,40)+1; if(along<10) continue;
+      for(const sg of [1,-1]){
+        const px=-dy*sg, py=dx*sg;
+        if(!isPublicSpace(at(x+px,y+py),dx,dy,px,py)) continue;
+        const across=ray(x,y,-px,-py,isOpen,8); if(across<1||across>5) continue;
+        const ok=u=>{ const cx=x+dx*u, cy=y+dy*u, ci=at(cx,cy); return ci>=0&&cells[ci]===STREET&&ray(cx,cy,-px,-py,isOpen,2)>=1&&isPublicSpace(at(cx+px,cy+py),dx,dy,px,py); };
+        let u0=0,u1=0; while(u0>-40&&ok(u0-1)) u0--; while(u1<40&&ok(u1+1)) u1++;
+        if(u1-u0+1<4) continue;
+        const gate=Math.max(3,Math.round(P.gate*(0.7+a.g.turnP*2))), pat=Math.min(4,Math.floor(a.g.ortho*5));
+        let placed=0;
+        for(let u=u0;u<=u1;u++){ const v=fenceVal(pat,u-u0,gate); if(v===null) continue;
+          const i=at(x+dx*u,y+dy*u); if(!closable(i)||protectedCell(i)||inCrowd(i)) continue; setCell(i,v,K_FENCE,a); placed++; }
+        a.score+=placed; fences++; return;
+      }
+    }
+  }
+}
+
+// vendors: stalls beside the busiest crowd routes, never on the path, allowed in the big squares
+function vendorStep(a,pFill){
+  if(++a.run<60 || rnd()>Math.max(pFill,0.3)) return; a.run=0;
+  const thr=P.trample*2; let best=-1, bt=thr;
+  for(let t=0;t<40;t++){ const idx=randomCell(); if(idx>=0&&traffic[idx]>bt){ bt=traffic[idx]; best=idx; } }
+  if(best<0) return;
+  const x=best%W, y=(best/W)|0, tx=traffic[at(x+1,y)]+traffic[at(x-1,y)], ty=traffic[at(x,y+1)]+traffic[at(x,y-1)];
+  const [dx,dy] = tx>=ty ? [1,0] : [0,1], sg=rnd()<0.5?1:-1, px=-dy*sg, py=dx*sg, low=P.trample*0.4;
+  let k=1; while(k<10){ const i=at(x+px*k,y+py*k); if(i<0||!isOpen(cells[i])) return; if(traffic[i]<low) break; k++; }
+  if(k>=10) return;
+  const along=Math.max(2,Math.round(P.stall*(0.5+a.g.burstR/14))), across=Math.max(2,Math.round(P.stall*(0.4+a.g.wobble)));
+  const u0=-Math.floor(along/2), cellsOf=[];
+  for(let u=u0;u<u0+along;u++)for(let v=k+1;v<=k+across;v++){ const i=at(x+dx*u+px*v,y+dy*u+py*v);
+    if(i<0||cells[i]!==STREET||traffic[i]>=thr*0.5) return; cellsOf.push(i); }
+  // freestanding, and not crowding another stall
+  for(let u=u0-1;u<=u0+along;u++)for(let v=k;v<=k+across+1;v++){ const i=at(x+dx*u+px*v,y+dy*u+py*v); if(i<0||!isOpen(cells[i])) return; }
+  const g=P.stallGap, cx=x+px*(k+1), cy=y+py*(k+1);
+  for(let ddy=-g;ddy<=g;ddy++)for(let ddx=-g;ddx<=g;ddx++){ const i=at(cx+ddx,cy+ddy); if(i>=0&&cells[i]===SOLID&&kind[i]===K_STALL) return; }
+  cellsOf.sort((i,j)=>i-j);
+  for(const i of cellsOf) if(closable(i)){ setCell(i,SOLID,K_STALL,a); a.score+=2; }
+}
+
+// ---------- step ----------
+function step(){
+  tick++;
+  if(tick%Math.max(4,Math.round(W/40))===0) reconnect();
+  if(tick%10===0){ let v=0; for(let i=0;i<cells.length;i++) v+=isOpen(cells[i])|0; frac=v/cells.length; }
+  if(P.phaseLen>0 && tick-phaseStart>=P.phaseLen) setPhase(!crowdPhase);
+  if(ON.crowd){ if(!crowd||crowd.n!==P.crowdN) makeCrowd(P.crowdN); crowdStep(); }
+  if(ON.carver && tick%50===0 && tick>150 && realSquares()<P.bigCount && tick-lastSquareT>300 && frac<P.target/100+0.08) openSquare();
+  if(ON.program && rnd()<P.program*0.03) placeProgram();
+  const t=P.target/100, k=4*P.pressure;
+  const pDig = clamp(0.5 + k*(t-frac), 0.02, 1), pFill= clamp(0.5 + k*(frac-t), 0.02, 1), excess= clamp(k*(frac-t), 0, 1);
+  for(let n=agents.length-1;n>=0;n--){
+    const a=agents[n]; const g=a.g;
+    if(!ON[['carver','mason','linker','wander','fencer','vendor'][a.sp]]) continue;   // switched off: frozen, not ageing
+    const pace=[P.carverPace,P.masonPace,P.linkerPace,P.wanderPace,P.fencerPace,P.vendorPace][a.sp];
+    if(pace<1 && rnd()>pace){ a.age++; if(a.age>Math.min(g.life,P.lifeMax)) die(a); continue; }
+    if(a.sp>=2){ if(a.sp===2) linkerStep(a,pDig); else if(a.sp===3) wandererStep(a,pDig); else if(a.sp===4) fencerStep(a,pFill); else vendorStep(a,pFill);
+      a.age++; if(a.age>Math.min(g.life,P.lifeMax)) die(a); continue; }
+    if(rnd() > (a.sp===0?pDig:pFill)){ a.age++; if(a.age>Math.min(g.life,P.lifeMax)) die(a); continue; }   // throttled: wait, don't wander
+    steer(a); move(a);
+    const ci=at(a.x,a.y);
+    if(a.sp===0){
+      if(a.run>2 && !a.joining){ // block depth: a parallel street too close? turn and join it
+        const [dx,dy]=dirOf(a.h), px=-dy, py=dx, x=a.x|0, y=a.y|0, sp=Math.round(P.spacing*rankScale(a));
+        if(dx||dy) for(const sg of [1,-1]){
+          const v=ray(x,y,px*sg,py*sg,isOpen,8), si=at(x+px*sg*(v+1),y+py*sg*(v+1));
+          if(si<0||isOpen(cells[si])) continue;
+          const s=ray(x+px*sg*(v+1),y+py*sg*(v+1),px*sg,py*sg,v=>!isOpen(v),sp)+1;
+          if(s<sp && rnd()<0.5+0.5*P.precedent){ a.h=Math.atan2(py*sg,px*sg); a.arcK=0; a.joining=true; a.lastRun=a.run; a.run=0; break; }
+        }
+      }
+      if(isOpen(cells[ci]) && owner[ci]!==a.id && (a.joining || a.run>P.module*2) && rnd()<(a.joining?1:P.precedent*0.5)){
+        a.joining=false; a.h=snapHeading(a.h+(rnd()<0.5?1:-1)*Math.PI/2); a.lastRun=a.run; a.run=0; planRun(a);
+      }
+      brush(a, a.w, STREET);
+    } else {
+      masonAct(a, excess);
+      if(excess>0.3){ steer(a); move(a); masonAct(a, excess); }
+    }
+    a.age++;
+    if(a.age>Math.min(g.life,P.lifeMax)) die(a);
+  }
+}
+
+function reset(){
+  W=H=P.grid; cells=new Uint8Array(W*H); owner=new Int32Array(W*H).fill(-1); kind=new Uint8Array(W*H); age=new Int32Array(W*H).fill(-100000);
+  openness=new Uint8Array(W*H); square=new Uint16Array(W*H); traffic=new Float32Array(W*H); lastT=new Int32Array(W*H); gcost=new Float32Array(W*H); came=new Int32Array(W*H); heapN=new Int32Array(W*H*2); heapV=new Float32Array(W*H*2);
+  comp=new Int32Array(W*H); stack=new Int32Array(W*H); dist=new Int32Array(W*H); root=new Int32Array(W*H);
+  agents=[]; alive.clear(); nextId=0; deaths=0; tick=0; frac=0; passages=0; programs=0; interiorCells=0; hallCells=0; links=0; halls=0; fences=0;
+  lineage.births=0; lineage.fromFit=0;
+  if(document.getElementById('seedCross').checked){   // optional seed: a square and two avenues; off by default, the city starts as solid rock
+    const r=Math.max(4,W*0.05), sw=Math.max(2,Math.round(P.cWidth*P.hierarchy*P.hierarchy));
+    rectFill(W/2-r*1.4,H/2-r,W/2+r*1.4,H/2+r,STREET,null,true,false,K_SEED);
+    rectFill(W*0.15,H/2-sw/2,W*0.85,H/2+sw/2,STREET,null,true,false,K_SEED);
+    rectFill(W/2-sw/2,H*0.15,W/2+sw/2,H*0.85,STREET,null,true,false,K_SEED); }
+  for(let i=0;i<P.nCarver;i++) spawn(0);
+  for(let i=0;i<P.nMason;i++) spawn(1);
+  for(let i=0;i<P.nLinker;i++) spawn(2);
+  for(let i=0;i<P.nWander;i++) spawn(3);
+  for(let i=0;i<P.nFencer;i++) spawn(4);
+  for(let i=0;i<P.nVendor;i++) spawn(5);
+  squares=[]; squareSeq=0; routes.clear(); lastSquareT=-1e9; lastDecay=0; footfalls=0; widened=0; crowd=null;
+  computeOpenness(); if(ON.crowd) makeCrowd(P.crowdN);
+  buildHatch(); draw();
+}
+
+// ---------- render ----------
+const cv=document.getElementById('map'), ctx=cv.getContext('2d');
+const off=document.createElement('canvas'), octx=off.getContext('2d');
+const hatchCv=document.createElement('canvas');
+let img, SCALE=4;
+function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function buildHatch(){
+  SCALE=Math.max(2,Math.round(640/W)); cv.width=cv.height=W*SCALE;
+  off.width=W; off.height=H; img=octx.createImageData(W,H);
+  hatchCv.width=hatchCv.height=cv.width;
+  const h=hatchCv.getContext('2d');
+  h.fillStyle=css('--ink'); h.fillRect(0,0,hatchCv.width,hatchCv.height);
+  h.strokeStyle='rgba(215,205,185,0.36)'; h.lineWidth=Math.max(1,SCALE*0.22);
+  const sp=Math.max(3,SCALE*1.35), n=hatchCv.width*2;
+  h.beginPath(); for(let d=-hatchCv.height; d<n; d+=sp){ h.moveTo(d,0); h.lineTo(d+hatchCv.height,hatchCv.height); } h.stroke();
+}
+const paper=[0xef,0xe7,0xd3];
+// diagnostic palette, by who made the cell
+const DIAG = {
+  [K_ORIG]:[52,54,58], [K_SEED]:[250,250,240], [K_AVENUE]:[255,170,40], [K_STREET]:[255,208,110], [K_LANE]:[255,240,190],
+  [K_MASON]:[120,40,40], [K_BLOCK]:[170,60,60], [K_TUNNEL]:[70,200,205], [K_HALLWAY]:[170,130,230], [K_FENCE]:[90,140,200],
+  [K_PIAZZA]:[150,220,120], [K_HALL]:[60,170,110], [K_COURT]:[180,200,90], [K_ARCADE]:[130,225,190], [K_PASSAGE]:[255,110,180], [K_HAND]:[255,255,255], [K_TRAIL]:[230,90,140], [K_SQUARE]:[120,235,160], [K_STALL]:[190,200,80],
+};
+const LEGEND=[[K_AVENUE,'avenue (carver)'],[K_STREET,'street (carver)'],[K_LANE,'lane (carver)'],[K_MASON,'mason infill'],[K_BLOCK,'mason block'],
+  [K_ORIG,'untouched ground'],[K_TUNNEL,'linker tunnel'],[K_HALLWAY,'wanderer hallway'],[K_FENCE,'fence / wall'],[K_PIAZZA,'piazza'],[K_HALL,'hall'],
+  [K_COURT,'courtyard'],[K_ARCADE,'portico'],[K_PASSAGE,'passage (connectivity)'],[K_TRAIL,'crowd trail'],[K_SQUARE,'square (carvers\' reply)'],[K_STALL,'vendor stall'],[K_SEED,'seed'],[K_HAND,'drawn by hand']];
+document.getElementById('legend').innerHTML = LEGEND.map(([k,t])=>`<span><i style="background:rgb(${DIAG[k].join(',')})"></i>${t}</span>`).join('') + '<span><i style="background:#fff;border-color:#fff"></i>bright = changed just now</span><span><i style="background:#ff5a1a"></i>orange tint = footfall</span><span><i style="background:#7fb4ff"></i>blue tint = protected big space</span>'
+  + '<span class="sep"></span><span><i style="background:#c8862a;border-radius:50%"></i>carver</span><span><i style="background:#a5352b;border-radius:50%"></i>mason</span><span><i style="background:#2a8a90;border-radius:50%"></i>linker</span><span><i style="background:#7a52a8;border-radius:50%"></i>wanderer</span><span><i style="background:#4f7fa8;border-radius:50%"></i>fencer</span><span><i style="background:#7c8c2e;border-radius:50%"></i>vendor</span><span><i style="background:#b0507a;border-radius:50%"></i>crowd (dark = leader)</span><span>agent size = fitness</span>';
+let Z=1, VX=0, VY=0, tool='carve';
+function clampView(){ Z=clamp(Z,1,12); VX=clamp(VX,0,cv.width-cv.width/Z); VY=clamp(VY,0,cv.height-cv.height/Z); }
+function zoomAt(f,px,py){ const cx=VX+px/Z, cy=VY+py/Z; Z=clamp(Z*f,1,12); VX=cx-px/Z; VY=cy-py/Z; clampView(); }
+function draw(){
+  const d=img.data, diag=document.getElementById('diag').checked;
+  clampView(); ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle=css('--ink'); ctx.fillRect(0,0,cv.width,cv.height); ctx.setTransform(Z,0,0,Z,-VX*Z,-VY*Z);
+  for(let i=0,j=0;i<cells.length;i++,j+=4){
+    const c=cells[i];
+    if(diag){
+      let col=DIAG[kind[i]]||DIAG[K_ORIG];
+      if(c===SOLID && kind[i]!==K_MASON && kind[i]!==K_BLOCK && kind[i]!==K_FENCE) col=DIAG[K_ORIG];   // solid keeps only mason/fence colours
+      if(c===COLUMN) col=[20,20,25];
+      if(protectedCell(i)){ col=[col[0]*0.6+127*0.4, col[1]*0.6+180*0.4, col[2]*0.6+255*0.4]; }
+      if(isOpen(c) && traffic[i]>0){ const h=clamp(trafficAt(i)/(P.trample*3),0,1)*0.75; col=[col[0]+(255-col[0])*h, col[1]+(90-col[1])*h, col[2]+(26-col[2])*h]; }
+      const f=clamp(1-(tick-age[i])/80,0,1)*0.7;   // recent changes glow
+      d[j]=col[0]+(255-col[0])*f; d[j+1]=col[1]+(255-col[1])*f; d[j+2]=col[2]+(255-col[2])*f; d[j+3]=255;
+    } else if(c===SOLID){ d[j+3]=0; }
+    else { d[j]=paper[0]; d[j+1]=paper[1]; d[j+2]=paper[2]; d[j+3]=255; }
+  }
+  if(ON.crowd && crowd){ const c=crowd; for(let k=0;k<c.n;k++){ const j=(c.y[k]*W+c.x[k])*4, lead=c.role[k];
+      d[j]=lead?140:d[j]*0.35+176*0.65; d[j+1]=lead?42:d[j+1]*0.35+80*0.65; d[j+2]=lead?85:d[j+2]*0.35+122*0.65; d[j+3]=255; } }
+  octx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=false;
+  if(!diag){ if(document.getElementById('hatch').checked) ctx.drawImage(hatchCv,0,0); else { ctx.fillStyle=css('--ink'); ctx.fillRect(0,0,cv.width,cv.height); } }
+  ctx.drawImage(off,0,0,cv.width,cv.height);
+  if(!diag){ ctx.fillStyle=css('--ink'); const cs=Math.max(1.5,SCALE*0.55), co=(SCALE-cs)/2;
+    for(let i=0;i<cells.length;i++) if(cells[i]===COLUMN){ const R=nb(i,1), D=nb(i,3), L=nb(i,0), U=nb(i,2), big=(R>=0&&cells[R]===COLUMN)||(D>=0&&cells[D]===COLUMN)||(L>=0&&cells[L]===COLUMN)||(U>=0&&cells[U]===COLUMN);
+      if(big) ctx.fillRect((i%W)*SCALE, ((i/W)|0)*SCALE, SCALE, SCALE); else ctx.fillRect((i%W)*SCALE+co, ((i/W)|0)*SCALE+co, cs, cs); } }
+  if(document.getElementById('showAgents').checked){
+    for(const a of agents){
+      ctx.fillStyle = ['#c8862a','#a5352b','#2a8a90','#7a52a8','#4f7fa8','#7c8c2e'][a.sp];
+      const s = diag ? SCALE*(1+clamp(fitness(a),0,1)*2) : SCALE;      // in diagnostic view, size shows fitness
+      ctx.fillRect(Math.floor(a.x)*SCALE-(s-SCALE)/2, Math.floor(a.y)*SCALE-(s-SCALE)/2, s, s);
+    }
+  }
+  document.getElementById('sOpen').textContent=(frac*100).toFixed(0)+'%';
+  document.getElementById('sGen').textContent=deaths;
+  document.getElementById('sSq').textContent=realSquares();
+  document.getElementById('sPass').textContent=passages;
+  document.getElementById('sProg').textContent=programs;
+  if(tick%20===0) genesReadout();
+}
+function genesReadout(){
+  const sum=[{},{},{},{},{},{}], cnt=[0,0,0,0,0,0], fit=[[],[],[],[],[],[]], ranks=[0,0,0];
+  for(const a of agents){ cnt[a.sp]++; fit[a.sp].push(fitness(a)); if(a.sp===0) ranks[a.rank]++; for(const k in a.g) sum[a.sp][k]=(sum[a.sp][k]||0)+a.g[k]; }
+  const f=(sp,k,d=2)=>cnt[sp]?(sum[sp][k]/cnt[sp]).toFixed(d):'–';
+  const fs=sp=>{ if(!fit[sp].length) return '–'; const s=fit[sp].slice().sort((a,b)=>b-a); return `${s[0].toFixed(2)} best / ${(s.reduce((a,b)=>a+b,0)/s.length).toFixed(2)} mean`; };
+  document.getElementById('genes').innerHTML =
+    `<span class="c">Carvers</span> ${ranks[0]} avenue, ${ranks[1]} street, ${ranks[2]} lane; genes: turn drive <b>${f(0,'turnP')}</b>, sharp turns <b>${(f(0,'ortho')*100).toFixed(0)}%</b>, jogs <b>${f(0,'wobble')}</b>, square chance <b>${(f(0,'burstP',4)*100).toFixed(2)}%</b>, square size <b>${f(0,'burstR',1)}</b>, lifespan <b>${f(0,'life',0)}</b><br>` +
+    `<span class="m">Masons</span> genes: turn drive <b>${f(1,'turnP')}</b>, block chance <b>${(f(1,'burstP',4)*100).toFixed(2)}%</b>, block size <b>${f(1,'burstR',1)}</b>, lifespan <b>${f(1,'life',0)}</b><br>` +
+    `<span style="color:#2a8a90">Linkers</span> <b>${links}</b> tunnels · <span style="color:#7a52a8">Wanderers</span> <b>${halls}</b> hallways · <span style="color:#4f7fa8">Fencers</span> <b>${fences}</b> fences · <span style="color:#b0507a">Crowds</span> <b>${footfalls}</b> journeys, <b>${widened}</b> cells worn open`;
+  document.getElementById('evo').innerHTML =
+    `Fitness (net surviving work per tick of life): carvers <b>${fs(0)}</b> · masons <b>${fs(1)}</b> · ` +
+    `${lineage.births} births, <b>${lineage.births?Math.round(100*lineage.fromFit/lineage.births):0}%</b> from a parent with positive fitness`;
+}
+
+// ---------- loop & controls ----------
+let running=true;
+function frame(){ if(running){ for(let i=0;i<P.speed;i++) step(); draw(); } requestAnimationFrame(frame); }
+const playBtn=document.getElementById('playBtn');
+playBtn.onclick=()=>{ running=!running; playBtn.textContent=running?'Pause':'Play'; };
+document.getElementById('stepBtn').onclick=()=>{ running=false; playBtn.textContent='Play'; step(); draw(); };
+document.getElementById('resetBtn').onclick=reset;
+document.getElementById('crowdBtn').onclick=()=>setPhase(!crowdPhase);
+for(const inp of document.querySelectorAll('#classes input')) inp.addEventListener('change',()=>{ ON[inp.dataset.on]=inp.checked; if(crowdPhase){ crowdPhase=false; savedOn=null; document.getElementById('crowdBtn').classList.remove('on'); } });
+document.getElementById('fillBtn').onclick=()=>{ cells.fill(0); owner.fill(-1); kind.fill(0); interiorCells=0; hallCells=0; draw(); };
+document.getElementById('hatch').onchange=draw;
+document.getElementById('showAgents').onchange=draw;
+document.getElementById('diag').onchange=e=>{ document.getElementById('legend').hidden=!e.target.checked; draw(); };
+document.getElementById('legend').hidden=!document.getElementById('diag').checked;
+document.getElementById('wrap').onchange=e=>{ WRAP=e.target.checked; };
+
+let painting=false, panning=false, paintVal=STREET, last=null, pinch=null; const ptrs=new Map();
+const canvasPt=e=>{ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*cv.width, (e.clientY-r.top)/r.height*cv.height]; };
+const toCell=e=>{ const [px,py]=canvasPt(e); return [(VX+px/Z)/SCALE, (VY+py/Z)/SCALE]; };
+function setTool(t){ tool=t; for(const id of ['Carve','Fill','Pan']) document.getElementById('tool'+id).classList.toggle('on', id.toLowerCase()===t); cv.style.cursor = t==='pan'?'grab':'crosshair'; }
+for(const id of ['Carve','Fill','Pan']) document.getElementById('tool'+id).onclick=()=>setTool(id.toLowerCase());
+const pinchState=()=>{ const [a,b]=[...ptrs.values()]; return { d:Math.hypot(a[0]-b[0],a[1]-b[1]), mx:(a[0]+b[0])/2, my:(a[1]+b[1])/2 }; };
+cv.addEventListener('pointerdown',e=>{ const pt=canvasPt(e); ptrs.set(e.pointerId,pt); cv.setPointerCapture(e.pointerId);
+  if(ptrs.size>=2){ painting=false; panning=false; pinch=pinchState(); return; }
+  if(tool==='pan'){ panning=true; last=pt; return; }
+  painting=true; paintVal=(tool==='fill'||e.shiftKey)?SOLID:STREET; paint(e); });
+cv.addEventListener('pointermove',e=>{ if(!ptrs.has(e.pointerId)) return; const pt=canvasPt(e); ptrs.set(e.pointerId,pt);
+  if(ptrs.size>=2 && pinch){ const s=pinchState(); zoomAt(s.d/Math.max(1,pinch.d), s.mx, s.my); VX-=(s.mx-pinch.mx)/Z; VY-=(s.my-pinch.my)/Z; clampView(); pinch=s; if(!running) draw(); }
+  else if(panning){ VX-=(pt[0]-last[0])/Z; VY-=(pt[1]-last[1])/Z; last=pt; clampView(); if(!running) draw(); }
+  else if(painting) paint(e); });
+const release=e=>{ ptrs.delete(e.pointerId); if(ptrs.size<2) pinch=null; if(painting){ painting=false; reconnect(); draw(); } if(ptrs.size===0) panning=false; };
+cv.addEventListener('pointerup',release); cv.addEventListener('pointercancel',release);
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const [px,py]=canvasPt(e); zoomAt(Math.exp(-e.deltaY*0.0015),px,py); if(!running) draw(); },{passive:false});
+cv.addEventListener('dblclick',()=>{ Z=1; VX=VY=0; if(!running) draw(); });
+let lastTap=0; cv.addEventListener('pointerup',e=>{ if(e.pointerType==='touch'){ const t=performance.now(); if(t-lastTap<300){ Z=1; VX=VY=0; if(!running) draw(); } lastTap=t; } });
+function paint(e){ const [x,y]=toCell(e), s=Math.max(2,W*0.02); rectFill(x-s,y-s,x+s,y+s,paintVal,null,false,true,K_HAND); if(!running){ reconnect(); draw(); } }
+
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+mq.addEventListener?.('change',()=>{ buildHatch(); draw(); });
+
+reset();
+requestAnimationFrame(frame);
+})();
+</script>
+<script src="../../updated.js"></script>
+</body>
+</html>
