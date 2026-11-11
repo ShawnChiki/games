@@ -49,8 +49,8 @@
   .head h2{margin:0; font-family:"Lilita One",Nunito,sans-serif; font-weight:400; font-size:clamp(26px,7vw,34px); line-height:1}
   .head .count{font-weight:900; font-size:13px; color:var(--ink); background:var(--c); border-radius:999px; padding:3px 10px}
   .note{margin:0 0 18px; font-size:15px; font-weight:600; color:rgba(255,250,242,.7)}
-  .mp{--c:var(--lime)} .phone{--c:var(--sky)}
-  .mp .head h2{color:var(--lime)} .phone .head h2{color:var(--sky)}
+  .mp{--c:var(--lime)} .phone{--c:var(--sky)} .music{--c:var(--hot)}
+  .mp .head h2{color:var(--lime)} .phone .head h2{color:var(--sky)} .music .head h2{color:var(--hot)}
 
   .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:26px 22px}
 
@@ -134,12 +134,20 @@
     </div>
   </section>
 
+  <section class="music">
+    <div class="head"><h2>Music Tools</h2><span class="count" data-unit="tool"></span></div>
+    <p class="note">For making music. Bring your own samples.</p>
+    <div class="cards">
+      <a class="card" href="snare-date/"><b>Reggie's Miracle Snare Date</b><span class="blurb">Load a folder of samples, or 1,000 random drums, and they sort themselves by sound into a cloud. Slide a finger across to audition, then arrange everything around your favourites</span></a>
+    </div>
+  </section>
+
   <footer>Times are Toronto time (ET)</footer>
 </div>
 <script src="updated.js" data-mode="list"></script>
 <script>
 (async () => {
-  document.querySelectorAll('section').forEach(s => { const n = s.querySelectorAll('.card').length; s.querySelector('.count').textContent = n + (n === 1 ? ' game' : ' games'); });
+  document.querySelectorAll('section').forEach(s => { const n = s.querySelectorAll('.card').length; const c = s.querySelector('.count'), u = c.dataset.unit || 'game'; c.textContent = n + ' ' + u + (n === 1 ? '' : 's'); });
   const U = window.ChikiUpdated; if (!U) return;
   const REPOS = { games: 'ShawnChiki/games', xr: 'ShawnChiki/xr' };
   // a card's sources: its own folder here, or data-src="games:folder xr:file.html" for games in both repos
