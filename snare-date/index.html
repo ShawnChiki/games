@@ -971,11 +971,11 @@ function parseAIFF(ab){
   const dv = new DataView(ab);
   if (dv.byteLength < 12 || str4(dv, 0) !== 'FORM') return { err:'not an AIFF file' };
   const form = str4(dv, 8); if (form !== 'AIFF' && form !== 'AIFC') return { err:'not an AIFF file' };
-  let o = 12, ch = 0, bits = 16, sr = 0, comp = 'NONE', ssnd = -1, ssndLen = 0;
+  let o = 12, ch = 0, bits = 16, sr = 0, comp = 'NONE', ssnd = -1, ssndLen = 0, frames = 0;
   while (o + 8 <= dv.byteLength){
     const id = str4(dv, o), b = o + 8; let len = dv.getUint32(o + 4);
     if (len > dv.byteLength - b || (id === 'SSND' && len < 8)) len = dv.byteLength - b;   // some writers leave sizes wrong
-    if (id === 'COMM' && len >= 18){ ch = dv.getInt16(b); bits = dv.getInt16(b + 6); sr = ext80(dv, b + 8); if (form === 'AIFC' && len >= 22) comp = str4(dv, b + 18); }
+    if (id === 'COMM' && len >= 18){ ch = dv.getInt16(b); frames = dv.getUint32(b + 2); bits = dv.getInt16(b + 6); sr = ext80(dv, b + 8); if (form === 'AIFC' && len >= 22) comp = str4(dv, b + 18); }
     else if (id === 'SSND'){ const off = dv.getUint32(b); ssnd = b + 8 + off; ssndLen = Math.max(0, Math.min(len - 8 - off, dv.byteLength - ssnd)); }
     o = b + len + (len & 1);
   }
@@ -1016,7 +1016,17 @@ function parseAIFF(ab){
   else if (c === 'fl64'){ bps = 8; read = q => dv.getFloat64(q); }
   else if (c === 'ulaw'){ bps = 1; read = q => ulaw(dv.getUint8(q)); }
   else if (c === 'alaw'){ bps = 1; read = q => alaw(dv.getUint8(q)); }
-  else return { err:`AIFF compression "${comp.trim()}" isn't supported` };
+  else {
+    // unknown label: if the data is exactly the size plain PCM would be, read it as PCM (picking the byte order that sounds smoother)
+    const bp = Math.ceil(bits / 8);
+    if (bp < 1 || bp > 4 || !frames || Math.abs(ssndLen - frames * ch * bp) > ch * bp * 4) return { err:`AIFF compression "${comp.trim()}" isn't supported` };
+    const rd = le => bp === 1 ? q => dv.getInt8(q) / 128 : bp === 2 ? q => dv.getInt16(q, le) / 32768
+      : bp === 3 ? q => (le ? (dv.getUint8(q) | dv.getUint8(q + 1) << 8 | dv.getInt8(q + 2) << 16) : (dv.getInt8(q) << 16 | dv.getUint8(q + 1) << 8 | dv.getUint8(q + 2))) / 8388608
+      : q => dv.getInt32(q, le) / 2147483648;
+    const rough = f => { let s = 0, prev = 0; const m = Math.min(frames, 4096); for (let i = 0; i < m; i++){ const v = f(ssnd + i * ch * bp); s += Math.abs(v - prev); prev = v; } return s; };
+    const be = rd(false), lo = rd(true);
+    bps = bp; read = bp === 1 || rough(be) <= rough(lo) ? be : lo;
+  }
   const n = Math.floor(ssndLen / (bps * ch));
   if (n <= 0) return { err:'no audio inside' };
   for (let k = 0; k < ch; k++) outs.push(new Float32Array(n));
