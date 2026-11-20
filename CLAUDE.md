@@ -21,6 +21,10 @@ Sean's phone games, served by GitHub Pages at https://shawnchiki.github.io/games
      a tool that only exists as a Claude artifact links to its artifact URL with no `data-src` (no "Updated" line).
 3. **Every game page loads `../updated.js`** just before `</body>` (it shows when the game last changed, Toronto time).
 4. Built for phones first: thumb controls, no hover-only actions, readable at 390px wide, uncluttered (no extra stats).
+5. **Multiplayer (PeerJS) games load `../turn-config.js` in `<head>`**, before any connection is made:
+   `<script src="../turn-config.js"></script>`. It adds Sean's ExpressTURN relay to every WebRTC connection so players on
+   different wifi or cellular data can connect, and drops the dead Open Relay servers. Don't hand-roll TURN logins inside
+   games; edit `turn-config.js` instead (the `xr` repo has a matching copy, keep both the same).
 
 ## Launcher look
 
