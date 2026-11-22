@@ -106,7 +106,7 @@ button:disabled{opacity:.45;cursor:default}
 .joints b{font-family:var(--f-mono);font-size:10px;font-weight:500;letter-spacing:.06em;display:flex;align-items:center;gap:4px}
 .joints b i{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px rgba(255,255,255,calc(var(--a,0)*.5))}
 .joints span{font-family:var(--f-mono);font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
-@media (max-width:420px){.lbl{display:none}.joints span{font-size:10.5px}}
+@media (max-width:420px){#playRow #people{flex:1}#playRow .slider{order:5;flex-basis:100%}.lbl{display:none}.joints span{font-size:10.5px}}
 </style>
 
 <div id="poster" aria-hidden="true"></div>
@@ -149,9 +149,10 @@ button:disabled{opacity:.45;cursor:default}
     <span class="lbl">Mine</span>
     <div class="seg" id="mine"></div>
   </div>
-  <div class="row">
+  <div class="row" id="playRow">
     <button id="play" class="primary">Pause</button>
     <label class="slider" for="speed">Speed <input type="range" id="speed" min="0" max="9" step="1" value="4"><output id="speedOut">8×</output></label>
+    <button id="people" class="toggle" aria-pressed="true" title="Show or hide the parkour people">People</button>
     <button id="skip" class="primary">Finish job</button>
   </div>
   <div id="panelMore" class="more" hidden>
@@ -172,7 +173,7 @@ button:disabled{opacity:.45;cursor:default}
     <button id="cant" class="toggle" aria-pressed="false" title="Let blocks overhang past their supports">Cantilevers</button>
     <button id="topcleat" class="toggle" aria-pressed="false" title="Also cleat seams on surfaces people walk on">Top cleats</button>
     <button id="bars" class="toggle" aria-pressed="true" title="Install swing bars across gaps between blocks">Bars</button>
-    <button id="people" class="toggle" aria-pressed="true" title="Parkour people use the course once the arm parks">People</button>
+    <button id="trails" class="toggle" aria-pressed="true" title="Motion trails behind the parkour people">Trails</button>
     <button id="xray" class="toggle" aria-pressed="false">X-ray</button>
     <button id="axes" class="toggle" aria-pressed="true">Axes</button>
     <button id="reset">Reset</button>
@@ -1849,6 +1850,7 @@ $('reset').addEventListener('click', reset);
 $('axes').addEventListener('click', () => setAxesVisible(!showAxes));
 $('xray').addEventListener('click', () => setXray(!xray));
 $('people').addEventListener('click', () => { peopleOn = !peopleOn; $('people').setAttribute('aria-pressed', String(peopleOn)); });
+$('trails').addEventListener('click', () => { trailsOn = !trailsOn; $('trails').setAttribute('aria-pressed', String(trailsOn)); });
 $('bars').addEventListener('click', () => {
   barsOn = !barsOn; $('bars').setAttribute('aria-pressed', String(barsOn));
   rebuildNow();
@@ -2198,7 +2200,7 @@ addEventListener('keyup', e => { if (DZ.on && e.key === 'Shift') { DZ.shift = fa
 // ---------- Parkour people ----------
 // A few traceurs in very baggy pants. While the arm is working they keep to open floor and stay clear of it;
 // once it parks, the course is theirs: runs, climb-ups, precision jumps, flips, rolls, vaults and swings on the bars.
-let peopleOn = true;
+let peopleOn = true, trailsOn = true;
 const PPL = { list: [], group: new THREE.Group(), ray: new THREE.Raycaster(), solids: [], open: false, playStart: 0, time: 0 };
 scene.add(PPL.group);
 const PB = { hipW: .4, thigh: 1.85, shin: 1.85, torso: 2.45, sh: .7, upper: 1.25, fore: 1.2, R: 3.75, G: 40 };
@@ -2207,8 +2209,8 @@ const legv = (a, L) => V3(0, -L * Math.cos(a), L * Math.sin(a));
 const rxv = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return V3(v.x, v.y * c - v.z * s, v.y * s + v.z * c); };
 const rzv = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return V3(v.x * c - v.y * s, v.x * s + v.y * c, v.z); };
 const qAxis = (x, y, z, a) => new THREE.Quaternion().setFromAxisAngle(V3(x, y, z), a);
-// Drawn as flat silhouettes: one unlit ink for every part, so the pieces merge into a single cut-out shape
-const INK = new THREE.MeshBasicMaterial({ color: col('#101318') }), INK2 = new THREE.MeshBasicMaterial({ color: col('#101318'), side: THREE.DoubleSide });
+// Drawn as flat silhouettes: one unlit colour per person, so the pieces merge into a single cut-out shape
+const RUN_COLS = ['#ff2a8a', '#9d2bff', '#ff5ad2', '#ff3b5c', '#6d3bff'];
 const K_RING = 9, M_SIDE = 12;
 const RAD = [.48, .58, .67, .72, .74, .72, .64, .48, .27], DEV = [0, .2, .45, .7, .85, .85, .7, .4, .14];
 const ZERO_P = () => ({ run: 0, crouch: 0, tuck: 0, split: 0, hang: 0, pike: 0, reach: 0, lean: 0 });
@@ -2217,6 +2219,7 @@ const ZERO_P = () => ({ run: 0, crouch: 0, tuck: 0, split: 0, hang: 0, pike: 0, 
 function heightAt(x, z) {
   PPL.ray.set(V3(x, 40, z), V3(0, -1, 0)); PPL.ray.far = 60;
   const hit = PPL.ray.intersectObjects(PPL.solids, false)[0];
+  PPL.hitObj = hit ? hit.object : null;
   return hit ? hit.point.y : 0;
 }
 function flatAt(x, z, h) {
@@ -2235,8 +2238,23 @@ function dangerAt(x, z, pad = 0) {
   return Math.hypot(x - ax - u * bx, z - az - u * bz) < 9 + pad;
 }
 
+const TRAIL_N = 28, TRAIL_LIFE = .55;
+function makeTrail(color, width) {
+  const geo = new THREE.BufferGeometry(), pos = new Float32Array(TRAIL_N * 2 * 3), al = new Float32Array(TRAIL_N * 2), idx = [];
+  for (let i = 0; i < TRAIL_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('a', new THREE.BufferAttribute(al, 1)); geo.setIndex(idx);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { c: { value: col(color) } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    vertexShader: 'attribute float a; varying float v; void main(){ v = a; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 c; varying float v; void main(){ gl_FragColor = linearToOutputTexel(vec4(c, v)); }'
+  });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 2; PPL.group.add(mesh);
+  return { geo, pos, al, mesh, pts: [], width };
+}
 function makeRunner(i) {
-  const pants = INK2, top = INK, skin = INK, hat = INK, shoe = INK;
+  const ink = new THREE.MeshBasicMaterial({ color: col(RUN_COLS[i % RUN_COLS.length]) });
+  const pants = new THREE.MeshBasicMaterial({ color: col(RUN_COLS[i % RUN_COLS.length]), side: THREE.DoubleSide });
+  const top = ink, skin = ink, hat = ink, shoe = ink;
   const g = new THREE.Group(); PPL.group.add(g);
   const add = m => { m.castShadow = true; g.add(m); return m; };
   const cyl = (r0, r1, m) => add(new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, 1, 12), m));
@@ -2244,10 +2262,14 @@ function makeRunner(i) {
   const r = {
     i, g, speed: 10 + Math.random() * 3, bag: .95 + Math.random() * .2,
     com: V3(), ground: 0, yaw: Math.random() * 6.28, Q: new THREE.Quaternion(), phase: Math.random() * 6, p: ZERO_P(), pt: ZERO_P(),
-    state: 'run', plan: [], to: null, t: 0, target: V3(), act: null,
+    state: 'away', awayT: Math.random() * 2, plan: [], to: null, t: 0, target: V3(), act: null,
+    trails: [makeTrail(RUN_COLS[i % RUN_COLS.length], .34), makeTrail(RUN_COLS[i % RUN_COLS.length], .26), makeTrail(RUN_COLS[i % RUN_COLS.length], .26)],
     m: {
-      torso: cyl(.66, .56, top), neck: cyl(.2, .2, skin), head: sph(.5, skin),
-      beanie: add(new THREE.Mesh(new THREE.SphereGeometry(.54, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), hat)), pom: sph(.17, hat),
+      torso: cyl(.66, .56, top), neck: cyl(.2, .2, skin),
+      head: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 16, 12).scale(.8, 1.04, .94), skin)),
+      chin: add(new THREE.Mesh(new THREE.SphereGeometry(.3, 12, 8).scale(.85, .7, 1.05), skin)),
+      beanie: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 16, 10).scale(.9, .62, 1.32), hat)),
+      hood: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 14, 10).scale(1.15, .62, .9), top)),
       upL: cyl(.24, .21, top), upR: cyl(.24, .21, top), foL: cyl(.2, .17, top), foR: cyl(.2, .17, top),
       haL: sph(.19, skin), haR: sph(.19, skin), shL: sph(.3, top), shR: sph(.3, top), elL: sph(.21, top), elR: sph(.21, top),
       ftL: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 12, 8).scale(.48, .36, 1), shoe)), ftR: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 12, 8).scale(.48, .36, 1), shoe))
@@ -2302,7 +2324,7 @@ function scanLine(from, to, h0) {
   let prev = h0, last = V3(from.x, h0, from.z);
   for (let k = 1; k <= n; k++) {
     const x = from.x + dx * k / n, z = from.z + dz * k / n, h = heightAt(x, z);
-    if (Math.abs(h - prev) > .95 || !allowedXZ(x, z) || dangerAt(x, z) || (!PPL.open && h > .05 && prev <= .05)) return { cont: false, takeoff: last, d: d * (k - 1) / n };
+    if (Math.abs(h - prev) > .95 || !allowedXZ(x, z) || dangerAt(x, z)) return { cont: false, takeoff: last, d: d * (k - 1) / n };
     prev = h; last = V3(x, h, z);
   }
   return { cont: true, takeoff: last, d };
@@ -2328,41 +2350,67 @@ function pickTrick(T, big) {
   if (T > .62) return R < .22 ? 'back' : R < .4 ? 'front' : R < .55 ? 'side' : R < .72 ? 'spin' : R < .86 ? 'dive' : 'split';
   return R < .35 ? 'split' : R < .6 ? 'tuck' : R < .8 ? 'half' : 'plain';
 }
+function onCourse(x, z) { const h = heightAt(x, z); return { h, block: h > .5 && PPL.hitObj && PPL.playSet.has(PPL.hitObj) ? PPL.hitObj : null }; }
 function decide(r) {
   r.plan = [];
-  const open = PPL.open, here = r.com, g0 = r.ground, blocksUp = PPL.solids.length > 0;
+  const open = PPL.open, here = r.com, g0 = r.ground, onFloor = g0 < .3, pad = open ? 0 : 5;
   const fleeing = !open && dangerAt(here.x, here.z, 3);
   // swing or vault the bars now and then
-  if (open && Math.random() < .22) { const pl = planBar(r); if (pl) { r.plan = pl; return; } }
+  if (Math.random() < (open ? .22 : .12)) { const pl = planBar(r); if (pl) { r.plan = pl; return; } }
+  const fx = Math.sin(r.yaw), fz = Math.cos(r.yaw), here0 = onCourse(here.x, here.z).block;
   let best = null;
-  for (let n = 0; n < 22; n++) {
-    const ang = Math.random() * Math.PI * 2, d = open ? 2.5 + Math.random() * 11 : 4 + Math.random() * 16;
-    const x = here.x + Math.sin(ang) * d, z = here.z + Math.cos(ang) * d;
-    if (!allowedXZ(x, z) || dangerAt(x, z, 2)) continue;
-    const h = heightAt(x, z);
-    if (!open && h > .05) continue;
+  for (let n = 0; n < 34; n++) {
+    const ang = r.yaw + (Math.random() - .5) * (n < 20 ? 2.4 : 6.28), dist = 2.5 + Math.random() * 11;
+    const x = here.x + Math.sin(ang) * dist, z = here.z + Math.cos(ang) * dist;
+    if (!allowedXZ(x, z) || dangerAt(x, z, pad)) continue;
+    const { h, block } = onCourse(x, z);
+    if (!block) continue;                                   // targets are always on top of an obstacle
     if (!flatAt(x, z, h)) continue;
     if (otherTargets(r).some(t => Math.hypot(t.x - x, t.z - z) < 2.5)) continue;
     const to = V3(x, h, z), sc = scanLine(here, to, g0);
     let plan, jump = false;
-    if (sc.cont) plan = [{ k: 'run', to }];
-    else {
+    if (sc.cont) {
+      if (onFloor) continue;                                // (a floor-level path can't end on top of a block anyway)
+      plan = [{ k: 'run', to }];                            // running across a platform or up a ramp
+    } else {
       const tk = sc.takeoff, dh = h - tk.y, horiz = Math.hypot(x - tk.x, z - tk.z);
+      if (tk.y < .3 && sc.d > 7) continue;                  // no long jogs across the floor: run-ups stay short
       if (horiz > 11.5 || dh > 4.4 || dh < -10 || horiz < .8) continue;
       const hA = jumpFits(V3(tk.x, tk.y + STAND, tk.z), V3(x, h + STAND, z));
       if (!hA) continue;
       plan = []; if (sc.d > .5) plan.push({ k: 'run', to: tk });
       plan.push({ k: 'jump', to, hA }); jump = true;
     }
-    let score = Math.random() + (jump ? .3 : 0);
-    if (open) score += (h > g0 + 1 ? .55 : 0) + h * .04 - (h < .05 && blocksUp ? .45 : 0);
+    const dir = ((x - here.x) * fx + (z - here.z) * fz) / dist;
+    let score = Math.random() * .8 + (jump ? .5 : 0) + .4 * dir + (h > g0 + 1 ? .45 : 0) + h * .03 + (block !== here0 ? .3 : 0);
     if (fleeing) score += Math.hypot(x - tcpWorld(cur).x, z - tcpWorld(cur).z) / 8;
     if (!best || score > best.score) best = { score, plan, to };
   }
   if (best) {
     r.plan = best.plan; r.target.copy(best.to);
-    if (!best.plan.some(a => a.k === 'jump') && Math.random() < .45) r.plan.push({ k: 'trick' });
-  } else r.plan = [{ k: 'trick' }];
+    if (!best.plan.some(a => a.k === 'jump') && Math.random() < .3) r.plan.push({ k: 'trick' });
+    return;
+  }
+  // nothing in reach: on the course, drop to the floor toward the nearest free obstacle; on the floor, head for it
+  const near = nearestObstacle(r);
+  if (!near) { r.plan = [{ k: 'away' }]; return; }
+  const dx = near.x - here.x, dz = near.z - here.z, dd = Math.hypot(dx, dz), step = Math.min(dd - 2.5, 9);
+  const to = V3(here.x + dx / dd * step, 0, here.z + dz / dd * step);
+  if (!onFloor) {
+    const sc = scanLine(here, to, g0), tk = sc.takeoff, hA = jumpFits(V3(tk.x, tk.y + STAND, tk.z), V3(to.x, STAND, to.z));
+    r.plan = hA ? [...(sc.d > .5 ? [{ k: 'run', to: tk }] : []), { k: 'jump', to, hA }] : [{ k: 'away' }];
+  } else r.plan = step > .5 ? [{ k: 'run', to }] : [{ k: 'away' }];
+  r.target.copy(to);
+}
+// the closest block top that's open to use (not where the arm is working)
+function nearestObstacle(r) {
+  let best = null, bd = 1e9;
+  for (const m of PPL.solids) {
+    if (!PPL.playSet.has(m)) continue;
+    const q = m.position; if (!allowedXZ(q.x, q.z) || dangerAt(q.x, q.z, PPL.open ? 0 : 6)) continue;
+    const d = Math.hypot(q.x - r.com.x, q.z - r.com.z); if (d < bd) { bd = d; best = q; }
+  }
+  return best;
 }
 function planBar(r) {
   const here = r.com, bars = rackBars.filter(b => b.area === 'play' && b.mesh.position.distanceTo(here) < 22);
@@ -2405,7 +2453,9 @@ function nextAction(r) {
   if (!r.plan.length) decide(r);
   const a = r.plan.shift(); r.act = a; r.t = 0;
   if (a.k === 'run') { r.state = 'run'; r.to = a.to; return; }
+  if (a.k === 'away') { goAway(r); return; }
   if (a.k === 'trick') {
+    if (r.ground < .3) { r.plan = []; return nextAction(r); }
     const fwd = V3(Math.sin(r.yaw), 0, Math.cos(r.yaw)), to = r.com.clone().addScaledVector(fwd, 1.2);
     to.y = heightAt(to.x, to.z);
     if (Math.abs(to.y - r.ground) > .2) to.set(r.com.x, r.ground, r.com.z);
@@ -2442,6 +2492,10 @@ function trickPose(r, u) { // rotation about the body's centre and the pose for 
 }
 function stepRunner(r, dt) {
   const st = r.state;
+  // the arm swung close: get moving away from it straight from a landing or crouch, or slip out if there's nowhere to go
+  if (!PPL.open && (st === 'land' || st === 'prep') && dangerAt(r.com.x, r.com.z)) {
+    if (!r.fleeing) { r.fleeing = true; decide(r); return nextAction(r); }
+  } else if (st !== 'run') r.fleeing = false;
   if (st === 'run') {
     const dx = r.to.x - r.com.x, dz = r.to.z - r.com.z, d = Math.hypot(dx, dz), stepD = r.speed * dt;
     faceTo(r, r.to.x, r.to.z, Math.min(1, dt * 12));
@@ -2540,10 +2594,11 @@ function drawRunner(r, dt) {
   const W = v => v.clone().applyQuaternion(r.Q).add(pel), m = r.m;
   const chest = W(J.chest), base = W(V3(0, -.15, 0)), head = W(J.head);
   limb(m.torso, base, chest); limb(m.neck, W(J.neck), head);
-  m.head.position.copy(head);
   const hq = r.Q.clone().multiply(qAxis(1, 0, 0, J.l));
-  m.beanie.position.copy(head).add(V3(0, .06, 0).applyQuaternion(hq)); m.beanie.quaternion.copy(hq);
-  m.pom.position.copy(head).add(V3(0, .62, 0).applyQuaternion(hq));
+  const at = (o, v, q) => { o.position.copy(head).add(v.clone().applyQuaternion(hq)); o.quaternion.copy(q ? hq.clone().multiply(q) : hq); };
+  at(m.head, V3(0, 0, 0)); at(m.chin, V3(0, -.26, .2));
+  at(m.beanie, V3(0, .3, -.26), qAxis(1, 0, 0, -.6));     // slouchy beanie hanging off the back
+  at(m.hood, V3(0, -.62, -.42), qAxis(1, 0, 0, .25));     // hoodie hood bunched behind the neck
   for (const [s, U, F, H, Sh, El] of [[-1, m.upL, m.foL, m.haL, m.shL, m.elL], [1, m.upR, m.foR, m.haR, m.shR, m.elR]]) {
     const A = J['a' + s], sh = W(A.sh), el = W(A.el), ha = W(A.ha);
     limb(U, sh, el); limb(F, el, ha); H.position.copy(ha); Sh.position.copy(sh); El.position.copy(el);
@@ -2581,22 +2636,55 @@ function drawRunner(r, dt) {
     }
     leg.geo.attributes.position.needsUpdate = true; leg.geo.computeVertexNormals();
   }
+  r.lastJoints = { head: W(J.head).add(V3(0, .45, 0).applyQuaternion(hq)), ankL: W(J[-1].ankle), ankR: W(J[1].ankle) };
 }
+function drawTrails(r, live) {
+  const now = PPL.time, J = r.lastJoints;
+  const srcs = J ? [J.head, J.ankL, J.ankR] : [];
+  r.trails.forEach((tr, k) => {
+    if (live && srcs[k]) { const last = tr.pts[tr.pts.length - 1]; if (!last || last.p.distanceTo(srcs[k]) > .08) tr.pts.push({ p: srcs[k].clone(), t: now }); }
+    while (tr.pts.length > TRAIL_N || (tr.pts.length && now - tr.pts[0].t > TRAIL_LIFE)) tr.pts.shift();
+    const n = tr.pts.length; tr.mesh.visible = n > 2;
+    if (n < 3) return;
+    const cam = camera.position;
+    for (let i = 0; i < TRAIL_N; i++) {
+      const j = Math.min(i, n - 1), P = tr.pts[j].p, A = tr.pts[Math.max(j - 1, 0)].p, B = tr.pts[Math.min(j + 1, n - 1)].p;
+      const tan = B.clone().sub(A), side = tan.cross(cam.clone().sub(P)).normalize();
+      const age = Math.min(1, (now - tr.pts[j].t) / TRAIL_LIFE), w = tr.width * (1 - age) * (i < n ? 1 : 0);
+      for (const sg of [0, 1]) {
+        const o = (i * 2 + sg) * 3, q = P.clone().addScaledVector(side, sg ? w : -w);
+        tr.pos[o] = q.x; tr.pos[o + 1] = q.y; tr.pos[o + 2] = q.z; tr.al[i * 2 + sg] = i < n ? .55 * Math.pow(1 - age, 1.6) : 0;
+      }
+    }
+    tr.geo.attributes.position.needsUpdate = true; tr.geo.attributes.a.needsUpdate = true;
+  });
+}
+function goAway(r) { r.state = 'away'; r.awayT = 1 + Math.random() * 2; r.g.visible = false; r.plan = []; for (const t of r.trails) t.pts.length = 0; }
+// come in at the foot of an obstacle that's free to use, ready to go straight up onto it
 function spawnRunner(r) {
-  for (let n = 0; n < 200; n++) {
-    const x = plerp(ROOM.x0 + 8, ROOM.x1 - 8, Math.random()), z = plerp(AREAS.stock.z0 + AREAS.stock.D * C + 4, ROOM.z1 - 13, Math.random());
-    if (!allowedXZ(x, z) || dangerAt(x, z, 3) || heightAt(x, z) > .05) continue;
-    r.com.set(x, STAND, z); r.ground = 0; break;
+  const free = PPL.solids.filter(m => PPL.playSet.has(m) && allowedXZ(m.position.x, m.position.z) && !dangerAt(m.position.x, m.position.z, PPL.open ? 0 : 8));
+  if (!free.length) return false;
+  for (let n = 0; n < 60; n++) {
+    const q = free[Math.floor(Math.random() * free.length)].position, a = Math.random() * 6.28, d = 4 + Math.random() * 3;
+    const x = q.x + Math.sin(a) * d, z = q.z + Math.cos(a) * d;
+    if (!allowedXZ(x, z) || dangerAt(x, z, 6) || heightAt(x, z) > .05) continue;
+    if (PPL.list.some(o => o !== r && o.state !== 'away' && o.com.distanceTo(V3(x, STAND, z)) < 3)) continue;
+    r.com.set(x, STAND, z); r.ground = 0; r.yaw = Math.atan2(q.x - x, q.z - z);
+    r.state = 'run'; r.plan = []; r.to = r.com.clone(); r.trickQ = null; r.target.copy(r.com); r.g.visible = true;
+    for (const l of r.legs) l.fresh = true;
+    for (const t of r.trails) t.pts.length = 0;
+    return true;
   }
-  r.state = 'run'; r.plan = []; r.to = r.com.clone(); r.trickQ = null; r.target.copy(r.com);
-  for (const l of r.legs) l.fresh = true;
+  return false;
 }
 function updatePeople(dt) {
   const show = peopleOn && !DZ.on;
   PPL.group.visible = show;
   if (!show) return;
-  if (!PPL.list.length) for (let i = 0; i < 5; i++) { const r = makeRunner(i); PPL.list.push(r); spawnRunner(r); }
+  if (!PPL.list.length) for (let i = 0; i < 5; i++) { const r = makeRunner(i); r.g.visible = false; PPL.list.push(r); }
+  const playBlocks = blocks.filter(b => b.area === 'play');
   PPL.solids = blocks.filter(b => b.area === 'play' || b.area === 'floor').map(b => b.mesh);
+  PPL.playSet = new Set(playBlocks.map(b => b.mesh));
   for (const m of PPL.solids) m.updateMatrixWorld();
   const wasOpen = PPL.open;
   PPL.open = !!(job && job.kind === 'build' && job.done);
@@ -2605,12 +2693,14 @@ function updatePeople(dt) {
   PPL.time += d;
   for (const r of PPL.list) {
     if (d > 0) {
-      // the course just closed: anyone up on it heads down, then everyone keeps clear of the arm
-      if (wasOpen && !PPL.open && r.state === 'run') { r.plan = []; decide(r); nextAction(r); }
-      if (!allowedXZ(r.com.x, r.com.z) && r.state === 'run') spawnRunner(r);
-      stepRunner(r, d);
+      if (r.state === 'away') { r.awayT -= d; if (r.awayT <= 0 && !spawnRunner(r)) r.awayT = 1; }
+      else {
+        if (!allowedXZ(r.com.x, r.com.z) && r.state === 'run') goAway(r);
+        else stepRunner(r, d);
+      }
     }
-    drawRunner(r, d || 1e-4);
+    if (r.state !== 'away') { drawRunner(r, d || 1e-4); drawTrails(r, d > 0); }
+    for (const t of r.trails) if (!trailsOn || r.state === 'away') t.mesh.visible = false;
   }
 }
 
