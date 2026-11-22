@@ -172,6 +172,7 @@ button:disabled{opacity:.45;cursor:default}
     <button id="cant" class="toggle" aria-pressed="false" title="Let blocks overhang past their supports">Cantilevers</button>
     <button id="topcleat" class="toggle" aria-pressed="false" title="Also cleat seams on surfaces people walk on">Top cleats</button>
     <button id="bars" class="toggle" aria-pressed="true" title="Install swing bars across gaps between blocks">Bars</button>
+    <button id="people" class="toggle" aria-pressed="true" title="Parkour people use the course once the arm parks">People</button>
     <button id="xray" class="toggle" aria-pressed="false">X-ray</button>
     <button id="axes" class="toggle" aria-pressed="true">Axes</button>
     <button id="reset">Reset</button>
@@ -942,11 +943,24 @@ function windowOn(g, x, y, w, h) {
   addBox(g, w + 1, .3, .6, WM.frame, x, y - h / 2 - .45, .3);
 }
 function signOn(g, text, x, y, w, h, bg, fg, emissive) {
-  const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w); const gg = c.getContext('2d');
-  gg.fillStyle = bg; gg.fillRect(0, 0, c.width, c.height);
-  gg.fillStyle = fg; gg.font = `800 ${Math.round(c.height * .42)}px "Chakra Petch", sans-serif`; gg.textAlign = 'center'; gg.textBaseline = 'middle';
-  const lines = text.split('\n'); lines.forEach((l, i) => gg.fillText(l, c.width / 2, c.height * (i + .5) / lines.length + 2));
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * h / w); const gg = c.getContext('2d');
+  const lines = text.split('\n');
+  // lettering sized to the number of lines, then shrunk until the longest line fits inside the sign's margins
+  const draw = () => {
+    gg.fillStyle = bg; gg.fillRect(0, 0, c.width, c.height);
+    const padX = c.width * .07, padY = c.height * .12, rowH = (c.height - 2 * padY) / lines.length;
+    let fs = rowH * .78;
+    const setFont = () => { gg.font = `700 ${Math.round(fs)}px "Chakra Petch", "Arial Narrow", sans-serif`; };
+    setFont();
+    const widest = Math.max(...lines.map(l => gg.measureText(l).width));
+    if (widest > c.width - 2 * padX) { fs *= (c.width - 2 * padX) / widest; setFont(); }
+    gg.fillStyle = fg; gg.textAlign = 'center'; gg.textBaseline = 'middle';
+    lines.forEach((l, i) => gg.fillText(l, c.width / 2, padY + rowH * (i + .5) + fs * .04));
+  };
+  draw();
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  // the web font may arrive after the room is built: redraw once it has, so the measured widths match
+  if (document.fonts && document.fonts.load) document.fonts.load('700 40px "Chakra Petch"').then(() => { draw(); t.needsUpdate = true; }, () => {});
   const mat = new THREE.MeshStandardMaterial({ map: t, roughness: .6, emissive: emissive ? col(emissive) : col('#000000'), emissiveMap: emissive ? t : null, emissiveIntensity: emissive ? 1 : 0 });
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, .12), mat); m.position.set(x, y, .08); g.add(m); return m;
 }
@@ -992,8 +1006,22 @@ const _camRel = new THREE.Vector3();
 function updateWalls() { for (const w of walls) w.g.visible = _camRel.copy(camera.position).sub(w.p).dot(w.n) > 0; }
 
 // Bar rack on the robot side, west of the stock: bars lie along z across two rails, one slot per bar
-const RACK = { x0: -58.5, dx: 1.85, y: 2.6, z: -21 }, RACK_YAW = Math.PI / 2;
-const rackPos = slot => new THREE.Vector3(RACK.x0 + slot * RACK.dx, RACK.y, RACK.z);
+// Swing bars hang on wall brackets high up the west wall (above head height, off the floor), parallel to the wall,
+// in lanes stepping out from it; the gripper takes them from above, so lanes sit side by side, never stacked.
+const RACK = { x0: -58.5, dx: 1.85, y: 15, slots: [], lanes: [] }, RACK_YAW = Math.PI / 2;
+const rackPos = slot => RACK.slots[slot].clone();
+function layoutRack() {
+  const gap = 1.4, z0 = ROOM.z0 + 19, z1 = ROOM.z1 - 6, avail = z1 - z0; // clear of the wall's electrical panel
+  RACK.x0 = ROOM.x0 + 1.7;
+  const len = i => BAR_STOCK[i] * C;
+  let nl = 1;
+  const laneOf = (i, n) => i % n;
+  const laneLen = n => { const L = new Array(n).fill(-gap); BAR_STOCK.forEach((_, i) => L[laneOf(i, n)] += len(i) + gap); return L; };
+  while (nl < 6 && Math.max(...laneLen(nl)) > avail) nl++;
+  const L = laneLen(nl), zc = (z0 + z1) / 2, cur = L.map(l => zc - l / 2);
+  RACK.slots = BAR_STOCK.map((_, i) => { const l = laneOf(i, nl), z = cur[l] + len(i) / 2; cur[l] += len(i) + gap; return new THREE.Vector3(RACK.x0 + l * RACK.dx, RACK.y, z); });
+  RACK.lanes = L.map((l, i) => ({ x: RACK.x0 + i * RACK.dx, z0: zc - l / 2, z1: zc + l / 2 }));
+}
 const carriage = new THREE.Group(); scene.add(carriage);
 const scene_ = scene;
 carriage.add(box(7, 1.8, 4.4, GREY, 0, RAIL_Y - 1.4, 0));
@@ -1100,7 +1128,7 @@ function applyLayout(track, s) {
   E_MAX = L.track; ARM_S = L.s; FLIP_Z = L.flipZ; ZONE_Z = L.zone;
   Object.assign(AREAS.play, L.play); Object.assign(AREAS.stock, L.stock); Object.assign(ROOM, L.room); Object.assign(STATION, L.station);
   RW = ROOM.x1 - ROOM.x0; RD = ROOM.z1 - ROOM.z0;
-  RACK.x0 = ROOM.x0 + 1.5; RACK.z = STATION.z;
+  layoutRack();
   HOME.r = -STATION.z;
   const ro = document.getElementById('roomOut'); if (ro) ro.textContent = `${(RW * .2286).toFixed(1)} × ${(RD * .2286).toFixed(1)} m`;
   // a bigger arm hangs lower on a longer drop so its working heights scale with it
@@ -1170,11 +1198,20 @@ function buildLayout() {
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(RW, RD), new THREE.MeshStandardMaterial({ color: col('#3b434b'), roughness: 1 }));
   ceil.rotation.x = Math.PI / 2; ceil.position.set(0, ROOM.h, (ROOM.z0 + ROOM.z1) / 2); scene.add(ceil);
 }
-{
-  const x1 = RACK.x0 - 1, x2 = RACK.x0 + (BAR_STOCK.length - 1) * RACK.dx + 1;
-  for (const z of [RACK.z - 3.3, RACK.z + 3.3]) {
-    scene.add(box(x2 - x1, .4, .5, GREY, (x1 + x2) / 2, RACK.y - BAR_R - .2, z));
-    for (const x of [x1 + .3, (x1 + x2) / 2, x2 - .3]) scene.add(box(.4, RACK.y - BAR_R - .4, .4, GREY, x, (RACK.y - BAR_R - .4) / 2, z));
+{ // wall-mounted bar rack: a steel rail on the brick, brackets reaching out under the lanes, a cradle under each bar end
+  const zs = RACK.lanes.flatMap(l => [l.z0, l.z1]), za = Math.min(...zs) - 1, zb = Math.max(...zs) + 1;
+  const xOut = RACK.x0 + (RACK.lanes.length - 1) * RACK.dx + .9, yB = RACK.y - BAR_R - .35;
+  scene.add(box(.3, .9, zb - za, STEEL, ROOM.x0 + .15, yB + .2, (za + zb) / 2));
+  scene.add(box(.3, .9, zb - za, STEEL, ROOM.x0 + .15, yB - 2.6, (za + zb) / 2));
+  const nB = Math.max(2, Math.ceil((zb - za) / 7));
+  for (let k = 0; k <= nB; k++) {
+    const z = za + .3 + (zb - za - .6) * k / nB, w = xOut - ROOM.x0;
+    scene.add(box(w, .35, .35, GREY, ROOM.x0 + w / 2, yB, z));
+    const br = box(Math.hypot(w * .8, 2.6), .28, .28, GREY, ROOM.x0 + w * .4, yB - 1.3, z); br.rotation.z = Math.atan2(2.6, w * .8); scene.add(br);
+  }
+  for (const p of RACK.slots) for (const s of [-1, 1]) {
+    const i = RACK.slots.indexOf(p), z = p.z + s * (BAR_STOCK[i] * C / 2 - .5);
+    scene.add(box(.7, .45, .3, ORANGE, p.x, yB + .35, z));
   }
 }
 // Connector dispenser beside the stock strip
@@ -1244,6 +1281,7 @@ function partitionTick(dt) {
   if (PART.f === PART.target) return;
   const step = dt * PART.rate; PART.f += Math.max(-step, Math.min(step, PART.target - PART.f)); updatePartition();
 }
+const PLAY_MIN_MS = 30000; let skipPlay = false;
 const SESSION = 40; // seconds the finished course stays closed off for people to play before the next teardown
 function openPartition() {} // the divider was removed; kept as a no-op so the job flow stays the same
 
@@ -1601,7 +1639,7 @@ function removeConn(c) {
 }
 // ---------- Bar handling ----------
 function barMoves(from, fromYaw, to, toYaw, onPick, onDrop, label) {
-  const safe = safeEmpty();
+  const safe = Math.max(safeEmpty(), Math.max(from.y, to.y) + BAR_R + 2.6);
   mv({ y: safe }, 'fast', label);
   mv({ P: V3(from.x, safe, from.z), e: eFor(from.x), q: downQ(fromYaw) }, 'travel', label, LEAN);
   mv({ P: V3(from.x, from.y + BAR_R + 1.6, from.z) }, 'fast');
@@ -1682,7 +1720,12 @@ function finishJob() {
       act(() => setPhase('PLAY'), 0);
       if (queued || $('loop').checked) {
         const next = queued || nextTarget(job.name);
-        act(() => { queued = null; selectedTarget = next; startClear(next); }, SESSION);
+        // with people on, the course stays open for at least half a minute of real time, whatever the sim speed
+        const go = () => {
+          if (peopleOn && !skipPlay && performance.now() - PPL.playStart < PLAY_MIN_MS) { act(go, 1); return; }
+          skipPlay = false; queued = null; selectedTarget = next; startClear(next);
+        };
+        act(go, SESSION);
       }
     }
     updateTargetButtons();
@@ -1805,6 +1848,7 @@ wireToggle('panelToggle', 'panelMore');
 $('reset').addEventListener('click', reset);
 $('axes').addEventListener('click', () => setAxesVisible(!showAxes));
 $('xray').addEventListener('click', () => setXray(!xray));
+$('people').addEventListener('click', () => { peopleOn = !peopleOn; $('people').setAttribute('aria-pressed', String(peopleOn)); });
 $('bars').addEventListener('click', () => {
   barsOn = !barsOn; $('bars').setAttribute('aria-pressed', String(barsOn));
   rebuildNow();
@@ -1819,6 +1863,11 @@ $('cant').addEventListener('click', () => {
   updateJobText();
 });
 $('skip').addEventListener('click', () => {
+  if (job && job.done && job.kind === 'build') { // play time: end it now
+    skipPlay = true; const j = job;
+    for (let n = 0; n < 400 && job === j; n++) step(1);
+    jointVals = null; applyPose(); return;
+  }
   if (!job || job.done) return;
   const target = job;
   for (let n = 0; n < 100000 && !target.done; n++) step(1);
@@ -2146,12 +2195,432 @@ addEventListener('keydown', e => {
   else if (e.key === 'Shift') { DZ.shift = true; dzUpdateGhost(); }
 });
 addEventListener('keyup', e => { if (DZ.on && e.key === 'Shift') { DZ.shift = false; dzUpdateGhost(); } });
+// ---------- Parkour people ----------
+// A few traceurs in very baggy pants. While the arm is working they keep to open floor and stay clear of it;
+// once it parks, the course is theirs: runs, climb-ups, precision jumps, flips, rolls, vaults and swings on the bars.
+let peopleOn = true;
+const PPL = { list: [], group: new THREE.Group(), ray: new THREE.Raycaster(), solids: [], open: false, playStart: 0, time: 0 };
+scene.add(PPL.group);
+const PB = { hipW: .4, thigh: 1.85, shin: 1.85, torso: 2.45, sh: .7, upper: 1.25, fore: 1.2, R: 3.75, G: 40 };
+const plerp = (a, b, t) => a + (b - a) * t;
+const legv = (a, L) => V3(0, -L * Math.cos(a), L * Math.sin(a));
+const rxv = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return V3(v.x, v.y * c - v.z * s, v.y * s + v.z * c); };
+const rzv = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return V3(v.x * c - v.y * s, v.x * s + v.y * c, v.z); };
+const qAxis = (x, y, z, a) => new THREE.Quaternion().setFromAxisAngle(V3(x, y, z), a);
+// Drawn as flat silhouettes: one unlit ink for every part, so the pieces merge into a single cut-out shape
+const INK = new THREE.MeshBasicMaterial({ color: col('#101318') }), INK2 = new THREE.MeshBasicMaterial({ color: col('#101318'), side: THREE.DoubleSide });
+const K_RING = 9, M_SIDE = 12;
+const RAD = [.48, .58, .67, .72, .74, .72, .64, .48, .27], DEV = [0, .2, .45, .7, .85, .85, .7, .4, .14];
+const ZERO_P = () => ({ run: 0, crouch: 0, tuck: 0, split: 0, hang: 0, pike: 0, reach: 0, lean: 0 });
+
+// where you can stand: the top of whatever is under (x, z)
+function heightAt(x, z) {
+  PPL.ray.set(V3(x, 40, z), V3(0, -1, 0)); PPL.ray.far = 60;
+  const hit = PPL.ray.intersectObjects(PPL.solids, false)[0];
+  return hit ? hit.point.y : 0;
+}
+function flatAt(x, z, h) {
+  for (const [dx, dz] of [[.9, 0], [-.9, 0], [0, .9], [0, -.9]]) if (Math.abs(heightAt(x + dx, z + dz) - h) > .25) return false;
+  return true;
+}
+function allowedXZ(x, z) {
+  const st = AREAS.stock;
+  return x > ROOM.x0 + 6 && x < ROOM.x1 - 6 && z < ROOM.z1 - 11 && z > st.z0 + st.D * C + 2.5;
+}
+// the arm's footprint while it works: from the carriage down to the tool
+function dangerAt(x, z, pad = 0) {
+  if (PPL.open) return false;
+  const t = tcpWorld(cur), ax = cur.e, az = 0, bx = t.x - ax, bz = t.z - az;
+  const u = Math.max(0, Math.min(1, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz || 1)));
+  return Math.hypot(x - ax - u * bx, z - az - u * bz) < 9 + pad;
+}
+
+function makeRunner(i) {
+  const pants = INK2, top = INK, skin = INK, hat = INK, shoe = INK;
+  const g = new THREE.Group(); PPL.group.add(g);
+  const add = m => { m.castShadow = true; g.add(m); return m; };
+  const cyl = (r0, r1, m) => add(new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, 1, 12), m));
+  const sph = (r, m) => add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), m));
+  const r = {
+    i, g, speed: 10 + Math.random() * 3, bag: .95 + Math.random() * .2,
+    com: V3(), ground: 0, yaw: Math.random() * 6.28, Q: new THREE.Quaternion(), phase: Math.random() * 6, p: ZERO_P(), pt: ZERO_P(),
+    state: 'run', plan: [], to: null, t: 0, target: V3(), act: null,
+    m: {
+      torso: cyl(.66, .56, top), neck: cyl(.2, .2, skin), head: sph(.5, skin),
+      beanie: add(new THREE.Mesh(new THREE.SphereGeometry(.54, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), hat)), pom: sph(.17, hat),
+      upL: cyl(.24, .21, top), upR: cyl(.24, .21, top), foL: cyl(.2, .17, top), foR: cyl(.2, .17, top),
+      haL: sph(.19, skin), haR: sph(.19, skin), shL: sph(.3, top), shR: sph(.3, top), elL: sph(.21, top), elR: sph(.21, top),
+      ftL: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 12, 8).scale(.48, .36, 1), shoe)), ftR: add(new THREE.Mesh(new THREE.SphereGeometry(.5, 12, 8).scale(.48, .36, 1), shoe))
+    },
+    legs: [1, -1].map(s => {
+      const geo = new THREE.BufferGeometry(), pos = new Float32Array(K_RING * M_SIDE * 3), idx = [];
+      for (let k = 0; k < K_RING - 1; k++) for (let m = 0; m < M_SIDE; m++) {
+        const a = k * M_SIDE + m, b = k * M_SIDE + (m + 1) % M_SIDE, c = a + M_SIDE, d = b + M_SIDE; idx.push(a, c, b, b, c, d);
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, pants); mesh.frustumCulled = false; mesh.castShadow = true; g.add(mesh);
+      return { s, geo, pos, mesh, p: Array.from({ length: K_RING }, () => V3()), v: Array.from({ length: K_RING }, () => V3()), fresh: true };
+    })
+  };
+  return r;
+}
+// the body in its own frame: pelvis at the origin, +z forward
+function skeleton(r) {
+  const p = r.p, J = {};
+  for (const s of [1, -1]) {
+    const ps = r.phase + (s > 0 ? 0 : Math.PI);
+    let ah = p.run * .75 * Math.sin(ps), ak = p.run * (.3 + .95 * Math.max(0, Math.sin(ps + 2.2)));
+    ah += 1.05 * p.crouch; ak += 1.9 * p.crouch;
+    ah = plerp(ah, 2.0, p.tuck); ak = plerp(ak, 2.45, p.tuck);
+    ah = plerp(ah, s > 0 ? 1.25 : -.55, p.split); ak = plerp(ak, s > 0 ? .15 : 1.0, p.split);
+    ah = plerp(ah, .3 + p.pike, p.hang); ak = plerp(ak, .25, p.hang);
+    const hip = V3(s * PB.hipW, 0, 0), knee = hip.clone().add(legv(ah, PB.thigh)), ankle = knee.clone().add(legv(ah - ak, PB.shin));
+    J[s] = { hip, knee, ankle, foot: ah - ak };
+  }
+  const l = .22 * p.run + .45 * p.crouch + .8 * p.tuck + p.lean;
+  J.l = l; J.chest = rxv(V3(0, PB.torso, 0), l); J.head = rxv(V3(0, PB.torso + .72, 0), l); J.neck = rxv(V3(0, PB.torso - .05, 0), l);
+  for (const s of [1, -1]) {
+    const ps = r.phase + (s > 0 ? Math.PI : 0);
+    let a = .2 - .8 * Math.sin(ps) * p.run, e = .25 + 1.25 * p.run, b = .12;
+    a = plerp(a, -.75, p.crouch * .85); e = plerp(e, .35, p.crouch * .85);
+    a = plerp(a, 2.7, p.reach); e = plerp(e, .15, p.reach); b = plerp(b, .35, p.reach);
+    a = plerp(a, 1.05, p.tuck); e = plerp(e, 1.5, p.tuck);
+    a = plerp(a, Math.PI, p.hang); e = plerp(e, 0, p.hang); b = plerp(b, .1, p.hang);
+    const sh = rxv(V3(s * PB.sh, PB.torso - .28, 0), l);
+    const up = rzv(V3(0, -Math.cos(a), Math.sin(a)), s * b).multiplyScalar(PB.upper), fo = rzv(V3(0, -Math.cos(a + e), Math.sin(a + e)), s * b).multiplyScalar(PB.fore);
+    const el = sh.clone().add(rxv(up, l)), ha = el.clone().add(rxv(fo, l));
+    J['a' + s] = { sh, el, ha };
+  }
+  J.drop = Math.max(-J[1].ankle.y, -J[-1].ankle.y) + .28;
+  return J;
+}
+const STAND = (() => { const J = skeleton({ p: ZERO_P(), phase: 0 }); return J.drop + 1; })();
+
+// ---------- planning ----------
+function scanLine(from, to, h0) {
+  const dx = to.x - from.x, dz = to.z - from.z, d = Math.hypot(dx, dz), n = Math.max(1, Math.ceil(d / .45));
+  let prev = h0, last = V3(from.x, h0, from.z);
+  for (let k = 1; k <= n; k++) {
+    const x = from.x + dx * k / n, z = from.z + dz * k / n, h = heightAt(x, z);
+    if (Math.abs(h - prev) > .95 || !allowedXZ(x, z) || dangerAt(x, z) || (!PPL.open && h > .05 && prev <= .05)) return { cont: false, takeoff: last, d: d * (k - 1) / n };
+    prev = h; last = V3(x, h, z);
+  }
+  return { cont: true, takeoff: last, d };
+}
+function arc(S, E, hA) { return u => V3(plerp(S.x, E.x, u), plerp(S.y, E.y, u) + 4 * hA * u * (1 - u), plerp(S.z, E.z, u)); }
+function jumpFits(S, E) { // S, E are COM points; returns apex height or 0
+  const horiz = Math.hypot(E.x - S.x, E.z - S.z);
+  let hA = Math.max(1 + horiz * .1, Math.max(S.y, E.y) - (S.y + E.y) / 2 + 1.1);
+  for (let tries = 0; tries < 3; tries++, hA += 1.4) {
+    if (hA > 7) return 0;
+    const f = arc(S, E, hA); let ok = true;
+    for (let u = .12; u < .9 && ok; u += .08) {
+      const q = f(u), h = heightAt(q.x, q.z), need = u < .25 || u > .75 ? 3 : 2.1;
+      if (q.y - h < need || dangerAt(q.x, q.z)) ok = false;
+    }
+    if (ok) return hA;
+  }
+  return 0;
+}
+const otherTargets = r => PPL.list.filter(o => o !== r).map(o => o.target);
+function pickTrick(T, big) {
+  const R = Math.random();
+  if (T > .62) return R < .22 ? 'back' : R < .4 ? 'front' : R < .55 ? 'side' : R < .72 ? 'spin' : R < .86 ? 'dive' : 'split';
+  return R < .35 ? 'split' : R < .6 ? 'tuck' : R < .8 ? 'half' : 'plain';
+}
+function decide(r) {
+  r.plan = [];
+  const open = PPL.open, here = r.com, g0 = r.ground, blocksUp = PPL.solids.length > 0;
+  const fleeing = !open && dangerAt(here.x, here.z, 3);
+  // swing or vault the bars now and then
+  if (open && Math.random() < .22) { const pl = planBar(r); if (pl) { r.plan = pl; return; } }
+  let best = null;
+  for (let n = 0; n < 22; n++) {
+    const ang = Math.random() * Math.PI * 2, d = open ? 2.5 + Math.random() * 11 : 4 + Math.random() * 16;
+    const x = here.x + Math.sin(ang) * d, z = here.z + Math.cos(ang) * d;
+    if (!allowedXZ(x, z) || dangerAt(x, z, 2)) continue;
+    const h = heightAt(x, z);
+    if (!open && h > .05) continue;
+    if (!flatAt(x, z, h)) continue;
+    if (otherTargets(r).some(t => Math.hypot(t.x - x, t.z - z) < 2.5)) continue;
+    const to = V3(x, h, z), sc = scanLine(here, to, g0);
+    let plan, jump = false;
+    if (sc.cont) plan = [{ k: 'run', to }];
+    else {
+      const tk = sc.takeoff, dh = h - tk.y, horiz = Math.hypot(x - tk.x, z - tk.z);
+      if (horiz > 11.5 || dh > 4.4 || dh < -10 || horiz < .8) continue;
+      const hA = jumpFits(V3(tk.x, tk.y + STAND, tk.z), V3(x, h + STAND, z));
+      if (!hA) continue;
+      plan = []; if (sc.d > .5) plan.push({ k: 'run', to: tk });
+      plan.push({ k: 'jump', to, hA }); jump = true;
+    }
+    let score = Math.random() + (jump ? .3 : 0);
+    if (open) score += (h > g0 + 1 ? .55 : 0) + h * .04 - (h < .05 && blocksUp ? .45 : 0);
+    if (fleeing) score += Math.hypot(x - tcpWorld(cur).x, z - tcpWorld(cur).z) / 8;
+    if (!best || score > best.score) best = { score, plan, to };
+  }
+  if (best) {
+    r.plan = best.plan; r.target.copy(best.to);
+    if (!best.plan.some(a => a.k === 'jump') && Math.random() < .45) r.plan.push({ k: 'trick' });
+  } else r.plan = [{ k: 'trick' }];
+}
+function planBar(r) {
+  const here = r.com, bars = rackBars.filter(b => b.area === 'play' && b.mesh.position.distanceTo(here) < 22);
+  if (!bars.length) return null;
+  const bar = bars[Math.floor(Math.random() * bars.length)], bp = bar.mesh.position;
+  const ax = bar.yaw ? V3(0, 0, 1) : V3(1, 0, 0), nrm = V3(ax.z, 0, -ax.x), half = bar.len * C / 2 - 1;
+  const along = Math.max(-half, Math.min(half, (here.x - bp.x) * ax.x + (here.z - bp.z) * ax.z)) * .7;
+  const grip = bp.clone().addScaledVector(ax, along), mySide = Math.sign((here.x - grip.x) * nrm.x + (here.z - grip.z) * nrm.z) || 1;
+  for (const side of [mySide, -mySide]) {
+    const toward = nrm.clone().multiplyScalar(-side);
+    const ptAt = d => { const q = grip.clone().addScaledVector(toward, d); q.y = heightAt(q.x, q.z); return q; };
+    let A = null;
+    for (const d of [-3.2, -4.2, -2.6]) { const q = ptAt(d); if (allowedXZ(q.x, q.z) && flatAt(q.x, q.z, q.y) && q.y < grip.y - 2.5) { A = q; break; } }
+    if (!A) continue;
+    let L = null;
+    for (const d of [3.4, 4.5, 5.6, 6.8]) { const q = ptAt(d); if (allowedXZ(q.x, q.z) && flatAt(q.x, q.z, q.y) && q.y < grip.y - 2.5 && q.y > grip.y - 15) { L = q; break; } }
+    if (!L) continue;
+    // getting to the approach spot: a run, or a run and a jump
+    const sc = scanLine(here, A, r.ground); let pre;
+    if (sc.cont) pre = sc.d > .5 ? [{ k: 'run', to: A }] : [];
+    else {
+      const tk = sc.takeoff, horiz = Math.hypot(A.x - tk.x, A.z - tk.z), dh = A.y - tk.y;
+      if (horiz > 11 || horiz < .8 || dh > 4.4 || dh < -10) continue;
+      const hA = jumpFits(V3(tk.x, tk.y + STAND, tk.z), V3(A.x, A.y + STAND, A.z)); if (!hA) continue;
+      pre = sc.d > .5 ? [{ k: 'run', to: tk }] : []; pre.push({ k: 'jump', to: A, hA });
+    }
+    let under = 0; for (let d = -3.4; d <= 3.4; d += .85) under = Math.max(under, ptAt(d).y);
+    const clear = grip.y - Math.max(under, A.y);
+    r.target.copy(L);
+    if (clear > 7.6) return [...pre, { k: 'swing', grip, toward, L }];
+    if (clear > 2.8 && clear < 7.5 && Math.abs(A.y - L.y) < 2.5) return [...pre, { k: 'vault', grip, L }];
+  }
+  return null;
+}
+
+// ---------- doing ----------
+function setTargetPose(r, o) { Object.assign(r.pt, ZERO_P(), o); }
+function faceTo(r, x, z, k = 1) { const want = Math.atan2(x - r.com.x, z - r.com.z); let d = want - r.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); r.yaw += d * k; }
+function nextAction(r) {
+  if (!r.plan.length) decide(r);
+  const a = r.plan.shift(); r.act = a; r.t = 0;
+  if (a.k === 'run') { r.state = 'run'; r.to = a.to; return; }
+  if (a.k === 'trick') {
+    const fwd = V3(Math.sin(r.yaw), 0, Math.cos(r.yaw)), to = r.com.clone().addScaledVector(fwd, 1.2);
+    to.y = heightAt(to.x, to.z);
+    if (Math.abs(to.y - r.ground) > .2) to.set(r.com.x, r.ground, r.com.z);
+    const R = Math.random();
+    startAir(r, to, 2.4 + Math.random() * .8, R < .35 ? 'back' : R < .55 ? 'side' : R < .75 ? 'spin' : 'front', true); return;
+  }
+  if (a.k === 'jump') { faceTo(r, a.to.x, a.to.z); r.state = 'prep'; return; }
+  if (a.k === 'vault') { faceTo(r, a.L.x, a.L.z); r.state = 'prep'; return; }
+  if (a.k === 'swing') { faceTo(r, r.com.x + a.toward.x, r.com.z + a.toward.z); r.state = 'prep'; return; }
+}
+function startAir(r, to, hA, trick, inPlace) {
+  const S = r.com.clone(), E = V3(to.x, to.y + STAND, to.z);
+  if (!inPlace) faceTo(r, to.x, to.z);
+  r.air = { S, E, hA, T: Math.sqrt(8 * hA / PB.G), f: arc(S, E, hA), trick, drop: S.y - E.y, yaw0: r.yaw, to };
+  r.state = 'air'; r.t = 0;
+}
+function trickPose(r, u) { // rotation about the body's centre and the pose for each trick
+  const k = Math.min(1, Math.max(0, (u - .08) / .8)), e = k * k * (3 - 2 * k), bump = Math.sin(Math.PI * k);
+  const tr = r.air.trick, q = new THREE.Quaternion();
+  let pose = { reach: u < .25 ? 1 - u * 3 : 0, tuck: .25 * bump };
+  if (tr === 'back') { q.copy(qAxis(1, 0, 0, -Math.PI * 2 * e)); pose = { tuck: Math.pow(bump, .6) }; }
+  else if (tr === 'front') { q.copy(qAxis(1, 0, 0, Math.PI * 2 * e)); pose = { tuck: Math.pow(bump, .6) }; }
+  else if (tr === 'side') { q.copy(qAxis(0, 0, 1, (r.i % 2 ? 1 : -1) * Math.PI * 2 * e)); pose = { tuck: .7 * bump, split: .3 * bump }; }
+  else if (tr === 'spin') { r.yaw = r.air.yaw0 + Math.PI * 2 * e; pose = { tuck: .35 * bump, reach: .3 * bump }; }
+  else if (tr === 'half') { r.yaw = r.air.yaw0 + Math.PI * e; pose = { tuck: .3 * bump }; }
+  else if (tr === 'dive') { q.copy(qAxis(1, 0, 0, 1.25 * bump)); pose = { reach: bump, tuck: .2 * bump, lean: -.2 * bump }; }
+  else if (tr === 'split') pose = { split: Math.pow(bump, .5), reach: .6 * bump };
+  else if (tr === 'tuck') pose = { tuck: Math.pow(bump, .7), reach: .2 };
+  else if (tr === 'vault') { q.copy(qAxis(0, 0, 1, (r.i % 2 ? 1 : -1) * 1.15 * bump)); pose = { tuck: .55 * bump, lean: .2 * bump }; }
+  else if (tr === 'fly') { q.copy(qAxis(1, 0, 0, plerp(r.air.a0, -Math.PI * 2, e))); pose = { tuck: Math.pow(bump, .7) * .9 }; }
+  else if (tr === 'release') { q.copy(qAxis(1, 0, 0, plerp(r.air.a0, 0, e))); pose = { reach: .4 * bump }; }
+  else if (tr === 'tobar') { q.copy(qAxis(1, 0, 0, plerp(0, r.air.a1, e))); pose = { reach: Math.max(.6, e), hang: e * e }; }
+  return { q, pose };
+}
+function stepRunner(r, dt) {
+  const st = r.state;
+  if (st === 'run') {
+    const dx = r.to.x - r.com.x, dz = r.to.z - r.com.z, d = Math.hypot(dx, dz), stepD = r.speed * dt;
+    faceTo(r, r.to.x, r.to.z, Math.min(1, dt * 12));
+    setTargetPose(r, { run: 1 });
+    r.phase += dt * r.speed / 2.5 * Math.PI;
+    const k = d < stepD ? 1 : stepD / d; r.com.x += dx * k; r.com.z += dz * k;
+    const h = heightAt(r.com.x, r.com.z);
+    if (h < r.ground - 1) return fall(r);
+    r.ground = h;
+    if (!PPL.open && dangerAt(r.com.x, r.com.z, 1) && !r.fleeing) { r.fleeing = true; decide(r); return nextAction(r); }
+    if (d < stepD) { r.fleeing = false; nextAction(r); }
+    return;
+  }
+  if (st === 'prep') {
+    r.t += dt; setTargetPose(r, { crouch: 1 });
+    if (r.t > .15) {
+      const a = r.act;
+      if (a.k === 'jump') startAir(r, a.to, a.hA, pickTrick(Math.sqrt(8 * a.hA / PB.G), r.com.y - a.to.y > 6));
+      else if (a.k === 'vault') { startAir(r, a.L, Math.max(1.5, a.grip.y + 1.1 - (r.com.y + a.L.y + STAND) / 2), 'vault'); }
+      else if (a.k === 'swing') {
+        r.swing = { grip: a.grip, toward: a.toward, L: a.L, th: -.5, w: Math.sqrt(PB.G / PB.R), A: .55 };
+        const hang = a.grip.clone().addScaledVector(a.toward, Math.sin(-.5) * PB.R).add(V3(0, -Math.cos(-.5) * PB.R, 0));
+        const hA = Math.max(1.2, hang.y - r.com.y + 1.2);
+        r.air = { S: r.com.clone(), E: hang, hA: hA / 2 + .6, trick: 'tobar', a1: .5, yaw0: r.yaw };
+        r.air.T = Math.sqrt(8 * r.air.hA / PB.G); r.air.f = arc(r.air.S, r.air.E, r.air.hA); r.state = 'air'; r.t = 0;
+      }
+    }
+    return;
+  }
+  if (st === 'air') {
+    r.t += dt; const a = r.air, u = Math.min(1, r.t / a.T);
+    r.com.copy(a.f(u));
+    const tp = trickPose(r, u); r.trickQ = tp.q; setTargetPose(r, tp.pose);
+    if (u >= 1) {
+      r.trickQ = null;
+      if (a.trick === 'tobar') { r.state = 'swing'; r.t = 0; return; }
+      r.ground = heightAt(r.com.x, r.com.z);
+      if (Math.abs(r.ground + STAND - r.com.y) > 1.5) return fall(r);
+      r.state = a.drop > 6.5 && a.trick !== 'fly' ? 'roll' : 'land'; r.t = 0; r.rollFrom = r.com.clone();
+    }
+    return;
+  }
+  if (st === 'swing') {
+    const s = r.swing; r.t += dt;
+    if (!rackBars.some(b => b.area === 'play' && b.mesh.position.distanceTo(s.grip) < 6)) return fall(r);
+    s.A = Math.min(1.05, s.A + dt * .35);
+    const th = -s.A * Math.cos(s.w * r.t);
+    s.th = th;
+    r.com.copy(s.grip).addScaledVector(s.toward, Math.sin(th) * PB.R).add(V3(0, -Math.cos(th) * PB.R, 0));
+    r.trickQ = qAxis(1, 0, 0, -th); setTargetPose(r, { hang: 1, pike: .75 + .5 * Math.max(0, Math.sin(th)) });
+    const phase = s.w * r.t;
+    if (phase > Math.PI * 3 - .55) { // let go on the way up, front side
+      const trick = Math.random() < .5 ? 'fly' : 'release';
+      startAir(r, s.L, 2.2, trick); r.air.a0 = -th; r.yaw = Math.atan2(s.toward.x, s.toward.z); r.air.yaw0 = r.yaw;
+    }
+    return;
+  }
+  if (st === 'land') {
+    r.t += dt; setTargetPose(r, { crouch: r.t < .12 ? .9 : .4 });
+    r.com.y = r.ground + STAND - .9 * r.p.crouch;
+    if (r.t > .22) nextAction(r);
+    return;
+  }
+  if (st === 'roll') {
+    r.t += dt; const u = Math.min(1, r.t / .6), fwd = V3(Math.sin(r.yaw), 0, Math.cos(r.yaw));
+    const x = r.rollFrom.x + fwd.x * 3.2 * u, z = r.rollFrom.z + fwd.z * 3.2 * u, h = heightAt(x, z);
+    if (Math.abs(h - r.ground) < .3 && allowedXZ(x, z)) { r.com.x = x; r.com.z = z; }
+    r.trickQ = qAxis(1, 0, 0, Math.PI * 2 * u); setTargetPose(r, { tuck: Math.sin(Math.PI * u) });
+    r.com.y = r.ground + plerp(STAND, 1.4, Math.sin(Math.PI * u));
+    if (u >= 1) { r.trickQ = null; nextAction(r); }
+    return;
+  }
+  if (st === 'fall') {
+    r.vy -= PB.G * dt; r.com.y += r.vy * dt;
+    const h = heightAt(r.com.x, r.com.z);
+    setTargetPose(r, { reach: .5, tuck: .3 });
+    if (r.com.y <= h + STAND) { r.com.y = h + STAND; r.ground = h; r.trickQ = null; r.state = 'land'; r.t = 0; }
+  }
+}
+function fall(r) { r.state = 'fall'; r.vy = 0; r.plan = []; r.trickQ = null; }
+
+// ---------- drawing, with the pants on a little spring-and-damper cloth ----------
+const _tmpQ = new THREE.Quaternion(), _limbUp = V3(0, 1, 0);
+function limb(m, a, b) {
+  const d = b.clone().sub(a), L = d.length() || .001;
+  m.position.copy(a).add(b).multiplyScalar(.5); m.quaternion.setFromUnitVectors(_limbUp, d.multiplyScalar(1 / L)); m.scale.set(1, L, 1);
+}
+function drawRunner(r, dt) {
+  // ease the pose toward its target
+  const k = 1 - Math.exp(-dt * 16);
+  for (const n in r.p) r.p[n] += (r.pt[n] - r.p[n]) * (r.state === 'air' || r.state === 'swing' || r.state === 'roll' ? 1 : k);
+  const J = skeleton(r);
+  if (r.state === 'run') r.com.y = r.ground + J.drop + 1;
+  r.Q.setFromAxisAngle(_limbUp, r.yaw); if (r.trickQ) r.Q.multiply(r.trickQ);
+  const pel = r.com.clone().sub(V3(0, 1, 0).applyQuaternion(r.Q));
+  const W = v => v.clone().applyQuaternion(r.Q).add(pel), m = r.m;
+  const chest = W(J.chest), base = W(V3(0, -.15, 0)), head = W(J.head);
+  limb(m.torso, base, chest); limb(m.neck, W(J.neck), head);
+  m.head.position.copy(head);
+  const hq = r.Q.clone().multiply(qAxis(1, 0, 0, J.l));
+  m.beanie.position.copy(head).add(V3(0, .06, 0).applyQuaternion(hq)); m.beanie.quaternion.copy(hq);
+  m.pom.position.copy(head).add(V3(0, .62, 0).applyQuaternion(hq));
+  for (const [s, U, F, H, Sh, El] of [[-1, m.upL, m.foL, m.haL, m.shL, m.elL], [1, m.upR, m.foR, m.haR, m.shR, m.elR]]) {
+    const A = J['a' + s], sh = W(A.sh), el = W(A.el), ha = W(A.ha);
+    limb(U, sh, el); limb(F, el, ha); H.position.copy(ha); Sh.position.copy(sh); El.position.copy(el);
+  }
+  for (const [s, Ft] of [[-1, m.ftL], [1, m.ftR]]) {
+    const L = J[s], fq = r.Q.clone().multiply(qAxis(1, 0, 0, -L.foot * .5));
+    Ft.quaternion.copy(fq); Ft.position.copy(W(L.ankle)).add(V3(0, -.12, .22).applyQuaternion(fq));
+  }
+  // pants: rings follow a curve hip→knee→ankle, each ring lagging on a spring, looser toward the cuff
+  const right = V3(1, 0, 0).applyQuaternion(r.Q), sub = Math.max(1, Math.ceil(dt / .008)), h = dt / sub;
+  for (const leg of r.legs) {
+    const L = J[leg.s], w0 = W(V3(leg.s * .28, .3, 0)), kn = W(L.knee), an = W(L.ankle).add(V3(0, .05, 0));
+    const ctl = kn.clone().multiplyScalar(2).sub(w0.clone().add(an).multiplyScalar(.5));
+    const tgt = []; for (let i = 0; i < K_RING; i++) { const u = i / (K_RING - 1), a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u; tgt.push(V3(w0.x * a + ctl.x * b + an.x * c, w0.y * a + ctl.y * b + an.y * c, w0.z * a + ctl.z * b + an.z * c)); }
+    if (leg.fresh) { leg.p.forEach((p, i) => p.copy(tgt[i])); leg.fresh = false; }
+    for (let it = 0; it < sub; it++) for (let i = 1; i < K_RING; i++) {
+      const u = i / (K_RING - 1), ks = plerp(320, 42, u), kd = plerp(26, 5.5, u), p = leg.p[i], v = leg.v[i], t = tgt[i];
+      v.x += ((t.x - p.x) * ks - v.x * kd) * h; v.y += ((t.y - p.y) * ks - v.y * kd - 10) * h; v.z += ((t.z - p.z) * ks - v.z * kd) * h;
+      p.addScaledVector(v, h);
+      const dev = p.distanceTo(t), mx = DEV[i] * r.bag;
+      if (dev > mx) p.sub(t).multiplyScalar(mx / dev).add(t);
+    }
+    leg.p[0].copy(tgt[0]);
+    const spd = r.state === 'run' ? r.speed : r.state === 'air' || r.state === 'swing' ? 14 : 3;
+    for (let i = 0; i < K_RING; i++) {
+      const p = leg.p[i], tn = leg.p[Math.min(i + 1, K_RING - 1)].clone().sub(leg.p[Math.max(i - 1, 0)]).normalize();
+      const n1 = right.clone().addScaledVector(tn, -right.dot(tn)).normalize(), n2 = tn.clone().cross(n1);
+      for (let j = 0; j < M_SIDE; j++) {
+        const a = j / M_SIDE * Math.PI * 2, fl = 1 + Math.min(.13, spd * .009) * Math.sin(PPL.time * 11 + a * 3 + i * 1.3 + r.i * 2);
+        const rad = RAD[i] * r.bag * (i === K_RING - 1 ? 1 : fl), o = (i * M_SIDE + j) * 3;
+        leg.pos[o] = p.x + (Math.cos(a) * n1.x + Math.sin(a) * n2.x) * rad;
+        leg.pos[o + 1] = p.y + (Math.cos(a) * n1.y + Math.sin(a) * n2.y) * rad;
+        leg.pos[o + 2] = p.z + (Math.cos(a) * n1.z + Math.sin(a) * n2.z) * rad;
+      }
+    }
+    leg.geo.attributes.position.needsUpdate = true; leg.geo.computeVertexNormals();
+  }
+}
+function spawnRunner(r) {
+  for (let n = 0; n < 200; n++) {
+    const x = plerp(ROOM.x0 + 8, ROOM.x1 - 8, Math.random()), z = plerp(AREAS.stock.z0 + AREAS.stock.D * C + 4, ROOM.z1 - 13, Math.random());
+    if (!allowedXZ(x, z) || dangerAt(x, z, 3) || heightAt(x, z) > .05) continue;
+    r.com.set(x, STAND, z); r.ground = 0; break;
+  }
+  r.state = 'run'; r.plan = []; r.to = r.com.clone(); r.trickQ = null; r.target.copy(r.com);
+  for (const l of r.legs) l.fresh = true;
+}
+function updatePeople(dt) {
+  const show = peopleOn && !DZ.on;
+  PPL.group.visible = show;
+  if (!show) return;
+  if (!PPL.list.length) for (let i = 0; i < 5; i++) { const r = makeRunner(i); PPL.list.push(r); spawnRunner(r); }
+  PPL.solids = blocks.filter(b => b.area === 'play' || b.area === 'floor').map(b => b.mesh);
+  for (const m of PPL.solids) m.updateMatrixWorld();
+  const wasOpen = PPL.open;
+  PPL.open = !!(job && job.kind === 'build' && job.done);
+  if (PPL.open && !wasOpen) PPL.playStart = performance.now();
+  const d = playing ? Math.min(dt, 1 / 30) : 0;
+  PPL.time += d;
+  for (const r of PPL.list) {
+    if (d > 0) {
+      // the course just closed: anyone up on it heads down, then everyone keeps clear of the arm
+      if (wasOpen && !PPL.open && r.state === 'run') { r.plan = []; decide(r); nextAction(r); }
+      if (!allowedXZ(r.com.x, r.com.z) && r.state === 'run') spawnRunner(r);
+      stepRunner(r, d);
+    }
+    drawRunner(r, d || 1e-4);
+  }
+}
+
 let posterGone = false;
 const clock = new THREE.Clock(); let readoutT = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (playing) { step(dt * speed); partitionTick(dt * speed); }
   applyPose();
+  updatePeople(dt);
   updateActivity(dt);
   readoutT += dt; if (readoutT > 0.08) { readoutT = 0; updateReadout(); }
   controls.update(); updateWalls();
